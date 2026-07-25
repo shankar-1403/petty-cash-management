@@ -102,8 +102,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [profileIssue, setProfileIssue] =
-    useState<ProfileIssue>(null);
+  const [profileIssue, setProfileIssue] = useState<ProfileIssue>(null);
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(

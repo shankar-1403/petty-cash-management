@@ -12,28 +12,18 @@ import {
   X,
   Users,
 } from 'lucide-react'
+import { ROLES, ROLE_LABELS } from '@/lib/role'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
-const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/cash', label: 'Cash Management', icon: Wallet },
-  { to: '/salary', label: 'Salary', icon: Banknote },
-  { to: '/reports', label: 'Reports', icon: BarChart3 },
-  { to: '/admin/users', label: 'Users & Roles', icon: Users },
-  { to: '/notifications', label: 'Notifications', icon: Bell },
-  { to: '/settings', label: 'Settings', icon: Settings },
-]
-
 export default function Layout() {
   const { profile, logout } = useAuth()
-  const navigate = useNavigate()
+  console.log(profile)
   const [open, setOpen] = useState(false)
-
+  const role = String(profile?.role ?? '').trim().toLowerCase()
   const handleLogout = async () => {
     await logout()
-    navigate('/')
   }
 
   return (
@@ -72,22 +62,18 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-2">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/dashboard'}
-              onClick={() => setOpen(false)}
+          {role === ROLES.ADMIN &&
+            <NavLink to={'/admin-dashboard'} onClick={() => setOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white ${
                   isActive ? 'bg-blue-500/20 text-white shadow-inner' : ''
                 }`
               }
             >
-              <item.icon className="h-4 w-4" />
-              {item.label}
+              <LayoutDashboard className="h-4 w-4" />
+              Dashboard
             </NavLink>
-          ))}
+          }
         </nav>
 
         <div className="border-t border-white/5 p-4">

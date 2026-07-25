@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useLocation, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,9 @@ import { useAuth } from '@/context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, profile } = useAuth();
+  const location = useLocation();
+  const from = location.state?.from?.pathname
   const navigate = useNavigate();
   const [params] = useSearchParams()
   const moduleName = params.get('module') === 'salary' ? 'Salary' : 'Cash Management'
@@ -19,13 +21,16 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
+  if(profile?.user){
+    return <Navigate to={from && from !== '/' ? from : '/login'} replace />
+  }
+
   async function handleSubmit(e:any) {
     e.preventDefault()
     setError('')
     setSubmitting(true)
     try {
       await login(email.trim(), password)
-      navigate('/dashboard')
     } catch (err:any) {
       setError(err.message ?? 'Sign in failed')
     } finally {
