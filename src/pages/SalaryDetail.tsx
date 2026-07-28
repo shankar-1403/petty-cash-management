@@ -23,8 +23,12 @@ import {
 import {
   financeApproveSalary,
   getSalarySheet,
+  hrHeadApproveSalary,
+  hrHeadRejectSalary,
+  isHrHead,
   managementApproveSalary,
   managementRejectSalary,
+  shareSalaryWithHrHead,
   shareSalaryWithManagement,
 } from '@/lib/salary'
 import {
@@ -43,6 +47,7 @@ export default function SalaryDetailPage() {
   const [sheet, setSheet] = useState<SalarySheet | null | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
+  const [rejectTarget, setRejectTarget] = useState<'hr_head' | 'management'>('management')
   const [reason, setReason] = useState('')
   const [downloadPassword, setDownloadPassword] = useState('')
   const [downloading, setDownloading] = useState(false)
@@ -61,6 +66,9 @@ export default function SalaryDetailPage() {
     if (!user || !profile) return null
     return { uid: user.uid, name: profile.displayName || profile.email }
   }, [user, profile])
+
+  const itOverride = role === 'it'
+  const canActAsHrHead = Boolean(user && (isHrHead(user.uid) || itOverride))
 
   if (sheet === undefined) {
     return (
@@ -82,18 +90,56 @@ export default function SalaryDetailPage() {
     )
   }
 
-  const showHrShare =
+  const showHrSendToHead =
     canApproveHr(role) && (sheet.status === 'draft' || sheet.status === 'rejected')
-  const showMgmt =
-    canApproveManagement(role) && sheet.status === 'shared_management'
+  const showHrHeadApprove = canActAsHrHead && sheet.status === 'pending_hr_head'
+  const showHrHeadSend = canActAsHrHead && sheet.status === 'hr_head_approved'
+  const showHrHeadReject =
+    canActAsHrHead && (sheet.status === 'pending_hr_head' || sheet.status === 'hr_head_approved')
+  const showMgmt = canApproveManagement(role) && sheet.status === 'shared_management'
   const showFinance = canSettleFinance(role) && sheet.status === 'pending_finance'
+  const showActions =
+    showHrSendToHead ||
+    showHrHeadApprove ||
+    showHrHeadSend ||
+    showHrHeadReject ||
+    showMgmt ||
+    showFinance
 
-  async function onShare() {
+  async function onSendToHrHead() {
     if (!actor || !id) return
     setBusy(true)
     try {
-      await shareSalaryWithManagement(id, actor)
-      toast.success('Shared with Management')
+      await shareSalaryWithHrHead(id, actor)
+      toast.success('Sent to HR Head')
+      await reload()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Send failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onHrHeadApprove() {
+    if (!actor || !id) return
+    setBusy(true)
+    try {
+      await hrHeadApproveSalary(id, actor, { allowItOverride: itOverride })
+      toast.success('Approved by HR Head')
+      await reload()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Approve failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onSendToManagement() {
+    if (!actor || !id) return
+    setBusy(true)
+    try {
+      await shareSalaryWithManagement(id, actor, { allowItOverride: itOverride })
+      toast.success('Sent to Management')
       await reload()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Share failed')
@@ -102,7 +148,7 @@ export default function SalaryDetailPage() {
     }
   }
 
-  async function onApprove() {
+  async function onMgmtApprove() {
     if (!actor || !id) return
     setBusy(true)
     try {
@@ -123,9 +169,14 @@ export default function SalaryDetailPage() {
     }
     setBusy(true)
     try {
-      await managementRejectSalary(id, actor, reason.trim())
+      if (rejectTarget === 'hr_head') {
+        await hrHeadRejectSalary(id, actor, reason.trim(), { allowItOverride: itOverride })
+      } else {
+        await managementRejectSalary(id, actor, reason.trim())
+      }
       toast.success('Rejected')
       setRejectOpen(false)
+      setReason('')
       await reload()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Reject failed')
@@ -163,7 +214,6 @@ export default function SalaryDetailPage() {
     setDownloading(true)
     setDownloadStatus('Checking password…')
     try {
-      // Preferred: password hash gate + open Storage download URL (no hanging getBlob)
       if (current.filePasswordSaltB64 && current.filePasswordHashB64) {
         const ok = await verifySheetPassword(
           downloadPassword,
@@ -179,7 +229,6 @@ export default function SalaryDetailPage() {
         return
       }
 
-      // Legacy encrypted uploads
       if (current.fileSaltB64 && current.fileIvB64) {
         setDownloadStatus('Downloading encrypted file…')
         const encrypted = await downloadStorageBlob(current.filePath || current.fileUrl!)
@@ -261,23 +310,55 @@ export default function SalaryDetailPage() {
         </Card>
       )}
 
-      {(showHrShare || showMgmt || showFinance) && (
+      {showActions && (
         <Card>
           <CardHeader>
             <CardTitle>Actions</CardTitle>
+            <CardDescription>
+              Flow: HR → HR Head → Management → Finance
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
-            {showHrShare && (
-              <Button disabled={busy} onClick={() => void onShare()}>
-                Share with Management
+            {showHrSendToHead && (
+              <Button disabled={busy} onClick={() => void onSendToHrHead()}>
+                Send to HR Head
+              </Button>
+            )}
+            {showHrHeadApprove && (
+              <Button disabled={busy} onClick={() => void onHrHeadApprove()}>
+                Approve (HR Head)
+              </Button>
+            )}
+            {showHrHeadSend && (
+              <Button disabled={busy} onClick={() => void onSendToManagement()}>
+                Send to Management
+              </Button>
+            )}
+            {showHrHeadReject && (
+              <Button
+                variant="danger"
+                disabled={busy}
+                onClick={() => {
+                  setRejectTarget('hr_head')
+                  setRejectOpen(true)
+                }}
+              >
+                Reject (HR Head)
               </Button>
             )}
             {showMgmt && (
               <>
-                <Button disabled={busy} onClick={() => void onApprove()}>
-                  Approve
+                <Button disabled={busy} onClick={() => void onMgmtApprove()}>
+                  Approve (Management)
                 </Button>
-                <Button variant="danger" disabled={busy} onClick={() => setRejectOpen(true)}>
+                <Button
+                  variant="danger"
+                  disabled={busy}
+                  onClick={() => {
+                    setRejectTarget('management')
+                    setRejectOpen(true)
+                  }}
+                >
                   Reject
                 </Button>
               </>
@@ -311,7 +392,7 @@ export default function SalaryDetailPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reject salary sheet</DialogTitle>
-            <DialogDescription>HR can edit and re-share after rejection.</DialogDescription>
+            <DialogDescription>HR can edit and re-send after rejection.</DialogDescription>
           </DialogHeader>
           <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason" />
           <div className="flex justify-end gap-2">

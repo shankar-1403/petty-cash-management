@@ -57,7 +57,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const SESSION_DURATION_MS = 8 * 60 * 60 * 1000
-const SESSION_STORAGE_KEY = 'petty_management'
+const SESSION_STORAGE_KEY = 'kubera'
 
 function readSessionRecord(): SessionRecord | null {
   try {

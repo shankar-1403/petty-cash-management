@@ -3,6 +3,7 @@ import { get, onValue, push, ref, set, update } from 'firebase/database'
 import { db } from '@/lib/firebase'
 import { uploadInvoiceFile } from '@/lib/storage'
 import { notifyRoles } from '@/lib/notifications'
+import { deductMonthlyBalance } from '@/lib/balance'
 import type { UserRole } from '@/lib/role'
 import {
   APPROVAL_THRESHOLD,
@@ -486,6 +487,16 @@ export async function markInstallmentPaid(
         timelineEvent(actor.uid, actor.name, 'finance_paid', 'Marked as paid by Finance'),
       ],
     })
+
+    await deductMonthlyBalance({
+      amount: installment.amount,
+      requestId,
+      installmentId: installment.id,
+      subject: current.subject,
+      actor,
+      paidAt: installment.paidAt,
+    }).catch((err) => console.error('Failed to deduct monthly balance', err))
+
     const extra = [current.createdBy, current.assignedTo].filter(Boolean) as string[]
     await notifyRoles(
       ['admin', 'hr', 'it'],
@@ -523,6 +534,9 @@ export async function markInstallmentPaid(
   const anyPaid = installments.some((i) => i.status === 'paid')
   const status: CashStatus = allPaid ? 'paid' : anyPaid ? 'partially_paid' : current.status
 
+  const paidInstallment = current.paymentPlan.installments.find((i) => i.id === installmentId)
+  const paidAmount = paidInstallment?.amount ?? 0
+
   await update(ref(db, `cashRequests/${requestId}`), {
     status,
     updatedAt: Date.now(),
@@ -537,6 +551,18 @@ export async function markInstallmentPaid(
       ),
     ],
   })
+
+  if (paidAmount > 0) {
+    const paidAt = Date.now()
+    await deductMonthlyBalance({
+      amount: paidAmount,
+      requestId,
+      installmentId,
+      subject: current.subject,
+      actor,
+      paidAt,
+    }).catch((err) => console.error('Failed to deduct monthly balance', err))
+  }
 
   if (allPaid) {
     const extra = [current.createdBy, current.assignedTo].filter(Boolean) as string[]

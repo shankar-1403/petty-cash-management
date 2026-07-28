@@ -2,9 +2,15 @@ import { v4 as uuid } from 'uuid'
 import { get, onValue, push, ref, set, update } from 'firebase/database'
 import { db } from '@/lib/firebase'
 import { createPasswordSalt, hashPassword } from '@/lib/crypto-file'
-import { notifyRoles } from '@/lib/notifications'
+import { createNotificationForUsers, notifyRoles } from '@/lib/notifications'
 import { uploadSalarySheetFile } from '@/lib/storage'
-import type { SalaryRow, SalarySheet, SalaryStatus, TimelineEvent } from '@/types'
+import {
+  HR_HEAD_UID,
+  type SalaryRow,
+  type SalarySheet,
+  type SalaryStatus,
+  type TimelineEvent,
+} from '@/types'
 
 function timelineEvent(
   by: string,
@@ -13,6 +19,10 @@ function timelineEvent(
   message: string,
 ): TimelineEvent {
   return { at: Date.now(), by, byName, action, message }
+}
+
+export function isHrHead(uid: string | null | undefined): boolean {
+  return Boolean(uid && uid === HR_HEAD_UID)
 }
 
 function parseSheet(id: string, raw: Record<string, unknown>): SalarySheet {
@@ -43,6 +53,7 @@ function parseSheet(id: string, raw: Record<string, unknown>): SalarySheet {
     createdAt: Number(raw.createdAt ?? 0),
     updatedAt: Number(raw.updatedAt ?? raw.createdAt ?? 0),
     sharedAt: raw.sharedAt ? Number(raw.sharedAt) : undefined,
+    sharedWithHrHeadAt: raw.sharedWithHrHeadAt ? Number(raw.sharedWithHrHeadAt) : undefined,
     approvals: (raw.approvals as SalarySheet['approvals']) ?? undefined,
     rejection: (raw.rejection as SalarySheet['rejection']) ?? undefined,
     timeline: Array.isArray(raw.timeline) ? (raw.timeline as TimelineEvent[]) : [],
@@ -157,14 +168,150 @@ export async function updateSalarySheetDraft(
   })
 }
 
-export async function shareSalaryWithManagement(
+/** HR sends sheet to HR Head for review */
+export async function shareSalaryWithHrHead(
   id: string,
   actor: { uid: string; name: string },
 ): Promise<void> {
   const current = await getSalarySheet(id)
   if (!current) throw new Error('Sheet not found')
   if (current.status !== 'draft' && current.status !== 'rejected') {
-    throw new Error('Sheet cannot be shared in its current status')
+    throw new Error('Sheet cannot be sent to HR Head in its current status')
+  }
+  if (!current.fileUrl && !current.rows.length) {
+    throw new Error('Upload a salary sheet file (or add rows) before sharing')
+  }
+
+  const now = Date.now()
+  await update(ref(db, `salarySheets/${id}`), {
+    status: 'pending_hr_head',
+    sharedWithHrHeadAt: now,
+    updatedAt: now,
+    rejection: null,
+    timeline: [
+      ...current.timeline,
+      timelineEvent(actor.uid, actor.name, 'shared_hr_head', 'Sent to HR Head for review'),
+    ],
+  })
+
+  await Promise.all([
+    createNotificationForUsers([HR_HEAD_UID], {
+      title: 'Salary sheet awaiting HR Head review',
+      body: `${actor.name} sent “${current.title}” (${current.period}) for your approval.`,
+      type: 'salary_shared',
+      link: `/salary/${id}`,
+      requestId: id,
+    }),
+    notifyRoles(['it'], {
+      title: 'Salary sheet sent to HR Head',
+      body: `${actor.name} sent “${current.title}” (${current.period}) to HR Head.`,
+      type: 'salary_shared',
+      link: `/salary/${id}`,
+      requestId: id,
+    }),
+  ]).catch((err) => console.error('Failed to create notifications', err))
+}
+
+/** HR Head approves the sheet (then can send to Management) */
+export async function hrHeadApproveSalary(
+  id: string,
+  actor: { uid: string; name: string },
+  options?: { allowItOverride?: boolean; note?: string },
+): Promise<void> {
+  const current = await getSalarySheet(id)
+  if (!current) throw new Error('Sheet not found')
+  if (current.status !== 'pending_hr_head') {
+    throw new Error('Sheet is not awaiting HR Head approval')
+  }
+  if (!isHrHead(actor.uid) && !options?.allowItOverride) {
+    throw new Error('Only HR Head can approve at this step')
+  }
+
+  await update(ref(db, `salarySheets/${id}`), {
+    status: 'hr_head_approved',
+    updatedAt: Date.now(),
+    [`approvals/hrHead`]: {
+      by: actor.uid,
+      byName: actor.name,
+      at: Date.now(),
+      note: options?.note || null,
+    },
+    timeline: [
+      ...current.timeline,
+      timelineEvent(actor.uid, actor.name, 'hr_head_approved', 'Approved by HR Head'),
+    ],
+  })
+
+  await Promise.all([
+    createNotificationForUsers([current.createdBy].filter(Boolean), {
+      title: 'Salary sheet approved by HR Head',
+      body: `${actor.name} approved “${current.title}” (${current.period}). It can now be sent to Management.`,
+      type: 'salary_shared',
+      link: `/salary/${id}`,
+      requestId: id,
+    }),
+    notifyRoles(['it'], {
+      title: 'Salary sheet approved by HR Head',
+      body: `${actor.name} approved “${current.title}” (${current.period}).`,
+      type: 'salary_shared',
+      link: `/salary/${id}`,
+      requestId: id,
+    }),
+  ]).catch((err) => console.error('Failed to create notifications', err))
+}
+
+export async function hrHeadRejectSalary(
+  id: string,
+  actor: { uid: string; name: string },
+  reason: string,
+  options?: { allowItOverride?: boolean },
+): Promise<void> {
+  const current = await getSalarySheet(id)
+  if (!current) throw new Error('Sheet not found')
+  if (current.status !== 'pending_hr_head' && current.status !== 'hr_head_approved') {
+    throw new Error('Sheet cannot be rejected by HR Head in its current status')
+  }
+  if (!isHrHead(actor.uid) && !options?.allowItOverride) {
+    throw new Error('Only HR Head can reject at this step')
+  }
+
+  await update(ref(db, `salarySheets/${id}`), {
+    status: 'rejected',
+    updatedAt: Date.now(),
+    rejection: {
+      by: actor.uid,
+      byName: actor.name,
+      at: Date.now(),
+      reason,
+    },
+    timeline: [
+      ...current.timeline,
+      timelineEvent(actor.uid, actor.name, 'hr_head_rejected', `Rejected by HR Head: ${reason}`),
+    ],
+  })
+
+  await createNotificationForUsers([current.createdBy].filter(Boolean), {
+    title: 'Salary sheet rejected by HR Head',
+    body: `${actor.name} rejected “${current.title}”: ${reason}`,
+    type: 'salary_shared',
+    link: `/salary/${id}`,
+    requestId: id,
+  }).catch((err) => console.error('Failed to create notifications', err))
+}
+
+/** HR Head sends approved sheet to Management */
+export async function shareSalaryWithManagement(
+  id: string,
+  actor: { uid: string; name: string },
+  options?: { allowItOverride?: boolean },
+): Promise<void> {
+  const current = await getSalarySheet(id)
+  if (!current) throw new Error('Sheet not found')
+  if (current.status !== 'hr_head_approved') {
+    throw new Error('Sheet must be approved by HR Head before sending to Management')
+  }
+  if (!isHrHead(actor.uid) && !options?.allowItOverride) {
+    throw new Error('Only HR Head can send the sheet to Management')
   }
   if (!current.fileUrl && !current.rows.length) {
     throw new Error('Upload a salary sheet file (or add rows) before sharing')
@@ -177,13 +324,13 @@ export async function shareSalaryWithManagement(
     updatedAt: now,
     timeline: [
       ...current.timeline,
-      timelineEvent(actor.uid, actor.name, 'shared', 'Shared with Management'),
+      timelineEvent(actor.uid, actor.name, 'shared', 'Sent to Management by HR Head'),
     ],
   })
 
   await notifyRoles(['management', 'it'], {
-    title: 'Salary sheet shared',
-    body: `${actor.name} shared “${current.title}” (${current.period}) for Management review.`,
+    title: 'Salary sheet shared with Management',
+    body: `${actor.name} sent “${current.title}” (${current.period}) for Management review.`,
     type: 'salary_shared',
     link: `/salary/${id}`,
     requestId: id,

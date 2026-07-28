@@ -8,12 +8,12 @@ import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
 import { useAuth } from '@/context/AuthContext'
 import { canApproveHr, canApproveManagement } from '@/lib/role'
-import { subscribeSalarySheets } from '@/lib/salary'
+import { isHrHead, subscribeSalarySheets } from '@/lib/salary'
 import { formatDateTime } from '@/lib/utils'
 import { SALARY_STATUS_LABELS, type SalarySheet } from '@/types'
 
 export default function SalaryListPage() {
-  const { role } = useAuth()
+  const { user, role } = useAuth()
   const navigate = useNavigate()
   const [sheets, setSheets] = useState<SalarySheet[] | null>(null)
   const canCreate = canApproveHr(role)
@@ -22,11 +22,17 @@ export default function SalaryListPage() {
 
   const visible = useMemo(() => {
     return (sheets ?? []).filter((sheet) => {
-      if (canApproveHr(role) || role === 'it') return true
-      if (canApproveManagement(role)) return sheet.status !== 'draft'
+      if (canApproveHr(role) || role === 'it' || (user && isHrHead(user.uid))) return true
+      if (canApproveManagement(role)) {
+        return (
+          sheet.status === 'shared_management' ||
+          sheet.status === 'pending_finance' ||
+          sheet.status === 'approved'
+        )
+      }
       return sheet.status === 'pending_finance' || sheet.status === 'approved'
     })
-  }, [sheets, role])
+  }, [sheets, role, user])
 
   const columns = useMemo<ColumnDef<SalarySheet>[]>(
     () => [
@@ -80,7 +86,7 @@ export default function SalaryListPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Salary</h1>
           <p className="text-sm text-[var(--color-muted-foreground)]">
-            HR uploads a password-protected sheet, then shares it with Management and Finance.
+            HR uploads a sheet → HR Head approves → Management → Finance.
           </p>
         </div>
         {canCreate && (

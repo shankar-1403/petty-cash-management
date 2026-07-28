@@ -76,6 +76,8 @@ export interface CashRequest {
 
 export type SalaryStatus =
   | 'draft'
+  | 'pending_hr_head'
+  | 'hr_head_approved'
   | 'shared_management'
   | 'pending_finance'
   | 'approved'
@@ -112,7 +114,9 @@ export interface SalarySheet {
   createdAt: number
   updatedAt: number
   sharedAt?: number
+  sharedWithHrHeadAt?: number
   approvals?: {
+    hrHead?: ApprovalRecord
     management?: ApprovalRecord
   }
   rejection?: ApprovalRecord & { reason?: string }
@@ -150,7 +154,7 @@ export const CASH_CATEGORIES = [
   'Maintenance',
   'Office Supplies',
   'Vendor Payment',
-  'Petty Cash Reimbursement',
+  'Kubera Reimbursement',
   'Miscellaneous',
 ] as const
 
@@ -165,8 +169,13 @@ export const CASH_STATUS_LABELS: Record<CashStatus, string> = {
 
 export const SALARY_STATUS_LABELS: Record<SalaryStatus, string> = {
   draft: 'Draft (HR)',
+  pending_hr_head: 'Pending HR Head',
+  hr_head_approved: 'Approved by HR Head',
   shared_management: 'Shared with Management',
   pending_finance: 'Pending Finance',
   approved: 'Approved',
   rejected: 'Rejected',
 }
+
+/** Fixed HR Head account that reviews salary sheets before Management */
+export const HR_HEAD_UID = 'xaNIHMxmHAMSLe1wgXSGAQLHYp83'

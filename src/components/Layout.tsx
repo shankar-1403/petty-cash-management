@@ -13,9 +13,11 @@ import {
   Route,
   Moon,
   Sun,
+  PiggyBank,
 } from 'lucide-react'
 import {
   ROLES,
+  canApproveHr,
   hasPermission,
 } from '@/lib/role'
 import { useAuth } from '@/context/AuthContext'
@@ -24,7 +26,7 @@ import { subscribeUserNotifications } from '@/lib/notifications'
 import { processFinanceDueReminders } from '@/lib/due-reminders'
 import { useThemeStore } from '@/lib/theme'
 import type { AppUserProfile } from '@/types'
-import logo from "../assets/pcred-logo.png"
+import logo from "../assets/pcred-logo.webp"
 
 function linkClass({ isActive }: { isActive: boolean }) {
   return `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white ${
@@ -69,6 +71,9 @@ function linksForProfile(profile: AppUserProfile) {
 
   if (hasPermission(profile, 'cash')) {
     items.push({ to: '/cash', label: 'Cash Management', icon: Wallet })
+  }
+  if (canApproveHr(role)) {
+    items.push({ to: '/monthly-balance', label: 'Monthly Balance', icon: PiggyBank })
   }
   if (hasPermission(profile, 'salary')) {
     items.push({ to: '/salary', label: 'Salary', icon: Banknote })

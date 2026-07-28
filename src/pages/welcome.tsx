@@ -14,7 +14,7 @@ export function WelcomePage() {
         transition={{ duration: 0.4 }}
         className="relative z-10 w-full max-w-3xl text-center"
       >
-        <p className="text-4xl font-semibold tracking-tight sm:text-5xl">PettyCash</p>
+        <p className="text-4xl font-semibold tracking-tight sm:text-5xl">Kubera</p>
         <p className="mx-auto mt-3 max-w-lg text-[var(--color-muted-foreground)]">
           Choose a workspace to continue. Salary is available to HR, Management, Finance, and IT.
         </p>

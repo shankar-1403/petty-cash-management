@@ -6,20 +6,43 @@ import {
   CheckCircle2,
   Wallet,
   CircleDollarSign,
+  PiggyBank,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/AuthContext'
 import { subscribeCashRequests } from '@/lib/cash'
-import { ROLE_LABELS } from '@/lib/role'
+import {
+  currentYearMonth,
+  formatYearMonthLabel,
+  subscribeAllMonthlyCredits,
+  summarizeMonthWithCarry,
+} from '@/lib/balance'
+import { canApproveHr, ROLE_LABELS } from '@/lib/role'
 import { formatCurrency } from '@/lib/utils'
 import { CASH_STATUS_LABELS, type CashRequest } from '@/types'
 
 export default function DashboardPage() {
   const { profile, role } = useAuth()
   const [requests, setRequests] = useState<CashRequest[]>([])
+  const [creditsByMonth, setCreditsByMonth] = useState<Record<string, number>>({})
+  const yearMonth = currentYearMonth()
+  const showBalance = canApproveHr(role)
 
   useEffect(() => subscribeCashRequests(setRequests), [])
+  useEffect(() => {
+    if (!showBalance) return
+    return subscribeAllMonthlyCredits(setCreditsByMonth)
+  }, [showBalance])
+
+  const summary = useMemo(
+    () =>
+      showBalance
+        ? summarizeMonthWithCarry(yearMonth, creditsByMonth, requests)
+        : null,
+    [showBalance, yearMonth, creditsByMonth, requests],
+  )
 
   const stats = useMemo(() => {
     const pendingHr = requests.filter((r) => r.status === 'pending_hr').length
@@ -38,26 +61,55 @@ export default function DashboardPage() {
         return sum + paidAmount
       }, 0)
 
-    return [
+    const items = [
       { title: 'Total requests', value: String(requests.length), icon: FileStack },
       { title: 'Pending HR', value: String(pendingHr), icon: Clock3 },
       { title: 'Pending Management', value: String(pendingMgmt), icon: Clock3 },
       { title: 'Pending Finance', value: String(pendingFin), icon: Wallet },
       { title: 'Paid', value: String(paid), icon: CheckCircle2 },
-      { title: 'Settled amount', value: formatCurrency(expense), icon: CircleDollarSign },
+      { title: 'Settled amount (all time)', value: formatCurrency(expense), icon: CircleDollarSign },
     ]
-  }, [requests])
+
+    if (showBalance && summary) {
+      items.unshift(
+        {
+          title: `${formatYearMonthLabel(yearMonth)} remaining`,
+          value: formatCurrency(summary.remaining),
+          icon: PiggyBank,
+        },
+        {
+          title: 'Brought forward',
+          value: formatCurrency(summary.carryIn),
+          icon: PiggyBank,
+        },
+        {
+          title: 'Paid this month',
+          value: formatCurrency(summary.spent),
+          icon: CircleDollarSign,
+        },
+      )
+    }
+
+    return items
+  }, [requests, showBalance, yearMonth, summary])
 
   const recent = requests.slice(0, 5)
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-[var(--color-muted-foreground)]">
-          Welcome back, {profile?.displayName || profile?.email || 'User'}
-          {role ? ` · ${ROLE_LABELS[role]}` : ''}.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            Welcome back, {profile?.displayName || profile?.email || 'User'}
+            {role ? ` · ${ROLE_LABELS[role]}` : ''}.
+          </p>
+        </div>
+        {showBalance && (
+          <Button asChild variant="outline" size="sm">
+            <Link to="/monthly-balance">Manage monthly balance</Link>
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

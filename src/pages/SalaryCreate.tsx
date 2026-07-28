@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input, Label } from '@/components/ui/input'
 import { useAuth } from '@/context/AuthContext'
 import { canApproveHr } from '@/lib/role'
-import { createSalarySheet } from '@/lib/salary'
+import { createSalarySheet, shareSalaryWithHrHead } from '@/lib/salary'
 
 export default function SalaryCreatePage() {
   const { user, profile, role } = useAuth()
@@ -23,8 +23,7 @@ export default function SalaryCreatePage() {
     return <Navigate to="/salary" replace />
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function uploadSheet(sendToHrHead: boolean) {
     if (!user || !profile) return
 
     if (!title.trim() || !period.trim()) {
@@ -54,7 +53,16 @@ export default function SalaryCreatePage() {
         createdBy: user.uid,
         createdByName: profile.displayName || profile.email,
       })
-      toast.success('Salary sheet uploaded')
+
+      if (sendToHrHead) {
+        await shareSalaryWithHrHead(id, {
+          uid: user.uid,
+          name: profile.displayName || profile.email,
+        })
+        toast.success('Uploaded and sent to HR Head')
+      } else {
+        toast.success('Salary sheet saved as draft')
+      }
       navigate(`/salary/${id}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to upload sheet')
@@ -80,12 +88,17 @@ export default function SalaryCreatePage() {
             Upload salary sheet
           </CardTitle>
           <CardDescription>
-            Upload an Excel/CSV/PDF sheet and set a password. The password is required before anyone
-            can download the file from Firebase Storage.
+            Upload an Excel/CSV/PDF sheet and set a password. Then send it to HR Head for approval.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void uploadSheet(true)
+            }}
+          >
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="title">Title</Label>
@@ -156,13 +169,22 @@ export default function SalaryCreatePage() {
               </div>
             </div>
             <p className="text-xs text-[var(--color-muted-foreground)]">
-              Share this password securely with Management and Finance so they can decrypt and
-              download the sheet.
+              Share this password securely with reviewers so they can download the sheet.
             </p>
 
-            <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
-              {submitting ? 'Encrypting & uploading…' : 'Upload sheet'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={submitting}>
+                {submitting ? 'Uploading…' : 'Upload & send to HR Head'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={submitting}
+                onClick={() => void uploadSheet(false)}
+              >
+                Save as draft
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

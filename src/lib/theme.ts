@@ -28,7 +28,7 @@ export const useThemeStore = create<ThemeState>()(
       },
     }),
     {
-      name: 'petty-theme',
+      name: 'kubera-theme',
       onRehydrateStorage: () => (state) => {
         if (state?.theme) applyTheme(state.theme)
       },

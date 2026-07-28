@@ -3,7 +3,6 @@ import { Toaster } from 'sonner'
 import { AuthProvider } from '@/context/AuthContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import Layout from '@/components/Layout'
-import { WelcomePage } from '@/pages/welcome'
 import { LoginPage } from '@/pages/login'
 import AdminDashboard from '@/pages/AdminDashboard'
 import DashboardPage from '@/pages/Dashboard'
@@ -18,6 +17,7 @@ import SalaryDetailPage from '@/pages/SalaryDetail'
 import UsersRolesPage from '@/pages/UsersRoles'
 import NotificationsPage from '@/pages/Notifications'
 import SettingsPage from '@/pages/Settings'
+import MonthlyBalancePage from '@/pages/MonthlyBalance'
 import { ALL_ROLES, ROLES } from '@/lib/role'
 
 export default function App() {
@@ -26,7 +26,7 @@ export default function App() {
       <BrowserRouter>
         <Toaster richColors position="top-right" closeButton />
         <Routes>
-          <Route path="/" element={<WelcomePage />} />
+          <Route path="/" element={<LoginPage />} />
           <Route path="/login" element={<LoginPage />} />
 
           <Route element={<ProtectedRoute roles={[...ALL_ROLES]} />}>
@@ -39,6 +39,12 @@ export default function App() {
               </Route>
 
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route
+                path="/monthly-balance"
+                element={<ProtectedRoute roles={[ROLES.HR, ROLES.IT]} />}
+              >
+                <Route index element={<MonthlyBalancePage />} />
+              </Route>
               <Route path="/cash" element={<ProtectedRoute permission="cash" />}>
                 <Route index element={<CashListPage />} />
               </Route>
