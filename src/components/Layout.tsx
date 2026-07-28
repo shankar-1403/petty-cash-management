@@ -1,30 +1,131 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   Wallet,
   Banknote,
-  BarChart3,
   Bell,
   Settings,
   LogOut,
   Menu,
   X,
   Users,
+  Route,
+  Moon,
+  Sun,
 } from 'lucide-react'
-import { ROLES, ROLE_LABELS } from '@/lib/role'
+import {
+  ROLES,
+  hasPermission,
+} from '@/lib/role'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { subscribeUserNotifications } from '@/lib/notifications'
+import { processFinanceDueReminders } from '@/lib/due-reminders'
+import { useThemeStore } from '@/lib/theme'
+import type { AppUserProfile } from '@/types'
+import logo from "../assets/pcred-logo.png"
+
+function linkClass({ isActive }: { isActive: boolean }) {
+  return `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white ${
+    isActive ? 'bg-blue-500/20 text-white shadow-inner' : ''
+  }`
+}
+
+function NavItem({
+  to,
+  end,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  to: string
+  end?: boolean
+  icon: typeof LayoutDashboard
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <NavLink to={to} end={end} className={linkClass} onClick={onClick}>
+      <Icon className="h-4 w-4" />
+      <span className="flex-1">{label}</span>
+    </NavLink>
+  )
+}
+
+function linksForProfile(profile: AppUserProfile) {
+  const role = profile.role
+  const dash =
+    role === ROLES.ADMIN
+      ? { to: '/admin-dashboard', label: 'Dashboard' }
+      : { to: '/dashboard', label: 'Dashboard' }
+
+  const items: {
+    to: string
+    label: string
+    icon: typeof LayoutDashboard
+    end?: boolean
+  }[] = [{ to: dash.to, label: dash.label, icon: LayoutDashboard, end: true }]
+
+  if (hasPermission(profile, 'cash')) {
+    items.push({ to: '/cash', label: 'Cash Management', icon: Wallet })
+  }
+  if (hasPermission(profile, 'salary')) {
+    items.push({ to: '/salary', label: 'Salary', icon: Banknote })
+  }
+  if (hasPermission(profile, 'tracking')) {
+    items.push({ to: '/tracking', label: 'Tracking', icon: Route })
+  }
+  if (hasPermission(profile, 'users')) {
+    items.push({ to: '/admin/users', label: 'Users & Roles', icon: Users })
+  }
+
+  items.push({ to: '/settings', label: 'Settings', icon: Settings })
+
+  return items
+}
 
 export default function Layout() {
-  const { profile, logout } = useAuth()
-  console.log(profile)
+  const { user, profile, role, logout } = useAuth()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const role = String(profile?.role ?? '').trim().toLowerCase()
+  const [unread, setUnread] = useState(0)
+  const theme = useThemeStore((s) => s.theme)
+  const toggleTheme = useThemeStore((s) => s.toggleTheme)
+
+  useEffect(() => {
+    if (!user) {
+      setUnread(0)
+      return
+    }
+    return subscribeUserNotifications(user.uid, role, (items) => {
+      setUnread(items.filter((n) => !n.read).length)
+    })
+  }, [user, role])
+
+  useEffect(() => {
+    if (!user) return
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const key = `dueRemindersRan:${today}`
+    try {
+      if (sessionStorage.getItem(key)) return
+      sessionStorage.setItem(key, '1')
+    } catch {
+      /* ignore */
+    }
+    void processFinanceDueReminders().catch((err) =>
+      console.error('Failed to process due payment reminders', err),
+    )
+  }, [user])
+
   const handleLogout = async () => {
     await logout()
+    navigate('/')
   }
+
+  const closeMenu = () => setOpen(false)
+  const nav = profile ? linksForProfile(profile) : []
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-foreground)]">
@@ -38,7 +139,7 @@ export default function Layout() {
           type="button"
           className="fixed inset-0 z-40 bg-black/40 lg:hidden"
           aria-label="Close menu"
-          onClick={() => setOpen(false)}
+          onClick={closeMenu}
         />
       )}
 
@@ -49,49 +150,27 @@ export default function Layout() {
       >
         <div className="flex items-center justify-between px-5 py-5">
           <div>
-            <p className="text-lg font-semibold tracking-tight text-white">PettyCash</p>
-            <p className="text-xs text-slate-400">Enterprise cash control</p>
+            <img src={logo} alt="Pcred Logo" className='h-9'/>
           </div>
-          <button
-            type="button"
-            className="rounded-lg p-1 lg:hidden"
-            onClick={() => setOpen(false)}
-          >
+          <button type="button" className="rounded-lg p-1 lg:hidden" onClick={closeMenu}>
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-2">
-          {role === ROLES.ADMIN &&
-            <NavLink to={'/admin-dashboard'} onClick={() => setOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white ${
-                  isActive ? 'bg-blue-500/20 text-white shadow-inner' : ''
-                }`
-              }
-            >
-              <LayoutDashboard className="h-4 w-4" />
-              Dashboard
-            </NavLink>
-          }
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+          {nav.map((item) => (
+            <NavItem
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              icon={item.icon}
+              label={item.label}
+              onClick={closeMenu}
+            />
+          ))}
         </nav>
 
-        <div className="border-t border-white/5 p-4">
-          <div className="mb-3 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20 text-sm font-semibold text-blue-300">
-              {(profile?.displayName || profile?.email || 'U').slice(0, 2).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-white">
-                {profile?.displayName || profile?.email || 'User'}
-              </p>
-              {profile?.role && (
-                <Badge variant="outline" className="mt-1 border-white/20 text-slate-300">
-                  {profile.role}
-                </Badge>
-              )}
-            </div>
-          </div>
+        <div className="border-t border-white/5 px-4 py-2">
           <Button
             variant="ghost"
             className="w-full justify-start text-slate-300 hover:bg-white/5 hover:text-white"
@@ -106,22 +185,33 @@ export default function Layout() {
       <div className="lg:pl-72">
         <header className="sticky top-0 z-30 border-b border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-background)_80%,transparent)] backdrop-blur-xl">
           <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
+            <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setOpen(true)}>
+              <Menu className="h-5 w-5" />
+            </Button>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{profile?.displayName || 'Workspace'}</p>
+              <p className="truncate text-xs text-[var(--color-muted-foreground)]">{profile?.email}</p>
+            </div>
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden"
-              onClick={() => setOpen(true)}
+              onClick={toggleTheme}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              <Menu className="h-5 w-5" />
+              {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">
-                {profile?.displayName || 'Workspace'}
-              </p>
-              <p className="truncate text-xs text-[var(--color-muted-foreground)]">
-                {profile?.email}
-              </p>
-            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative"
+              onClick={() => navigate('/notifications')}
+              aria-label="Notifications"
+            >
+              <Bell className="h-5 w-5" />
+              {unread > 0 && (
+                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-blue-500" />
+              )}
+            </Button>
           </div>
         </header>
 

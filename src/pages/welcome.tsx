@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Wallet, ArrowRight } from 'lucide-react'
+import { Wallet, Banknote, ArrowRight } from 'lucide-react'
 
 export function WelcomePage() {
   return (
@@ -16,25 +16,38 @@ export function WelcomePage() {
       >
         <p className="text-4xl font-semibold tracking-tight sm:text-5xl">PettyCash</p>
         <p className="mx-auto mt-3 max-w-lg text-[var(--color-muted-foreground)]">
-          Choose a workspace to continue. You&apos;ll sign in on the next step.
+          Choose a workspace to continue. Salary is available to HR, Management, Finance, and IT.
         </p>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2">
-          <Link to={'/login?module=cash'} className={`group rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-6 text-left shadow-[0_8px_30px_rgba(15,23,42,0.06)] transition hover:shadow-xl`}
+          <Link
+            to="/login?module=cash"
+            className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-6 text-left shadow-[0_8px_30px_rgba(15,23,42,0.06)] transition hover:shadow-xl"
           >
-            <div className={`mb-4 inline-flex rounded-2xl p-3`}><Wallet className="h-6 w-6" /></div>
+            <div className="mb-4 inline-flex rounded-2xl bg-blue-500/10 p-3 text-blue-600 dark:text-blue-400">
+              <Wallet className="h-6 w-6" />
+            </div>
             <h2 className="text-xl font-semibold tracking-tight">Cash Management</h2>
-            <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">Requests, approvals, payment schedules, and finance settlements.</p>
+            <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">
+              Raise payments, HR/Management approvals, and Finance settlement.
+            </p>
             <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)]">
               Continue
               <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
             </span>
           </Link>
-          <Link to={'/login?module=salary'} className={`group rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-6 text-left shadow-[0_8px_30px_rgba(15,23,42,0.06)] transition hover:shadow-xl`}
+
+          <Link
+            to="/login?module=salary"
+            className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-6 text-left shadow-[0_8px_30px_rgba(15,23,42,0.06)] transition hover:shadow-xl"
           >
-            <div className={`mb-4 inline-flex rounded-2xl p-3`}><Wallet className="h-6 w-6" /></div>
+            <div className="mb-4 inline-flex rounded-2xl bg-emerald-500/10 p-3 text-emerald-600 dark:text-emerald-400">
+              <Banknote className="h-6 w-6" />
+            </div>
             <h2 className="text-xl font-semibold tracking-tight">Salary</h2>
-            <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">Requests, approvals, payment schedules, and finance settlements.</p>
+            <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">
+              HR sheets shared with Management, then Finance. Not available to Admin.
+            </p>
             <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)]">
               Continue
               <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />

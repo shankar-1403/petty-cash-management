@@ -1,11 +1,6 @@
-import React from 'react'
+import DashboardPage from './Dashboard'
 
-function AdminDashboard() {
-  return (
-    <>
-        Dashboard
-    </>
-  )
+/** Admin home — same dashboard metrics, separate route per plan. */
+export default function AdminDashboard() {
+  return <DashboardPage />
 }
-
-export default AdminDashboard

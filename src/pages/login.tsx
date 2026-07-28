@@ -1,38 +1,56 @@
 import { useState } from 'react'
-import { Link, useSearchParams, useLocation, Navigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input, Label } from '@/components/ui/input'
 import { useAuth } from '@/context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { canAccessModule, getHomePath } from '@/lib/role'
+import logo from "../assets/pcred-logo.png"
 
 export function LoginPage() {
-  const { login, profile } = useAuth();
-  const location = useLocation();
-  const from = location.state?.from?.pathname
-  const navigate = useNavigate();
+  const { user, role, loading, login } = useAuth()
+  const navigate = useNavigate()
   const [params] = useSearchParams()
-  const moduleName = params.get('module') === 'salary' ? 'Salary' : 'Cash Management'
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const moduleParam = params.get('module') === 'salary' ? 'salary' : 'cash'
+  const moduleName = moduleParam === 'salary' ? 'Salary' : 'Cash Management'
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
-  if(profile?.user){
-    return <Navigate to={from && from !== '/' ? from : '/login'} replace />
+  if (!loading && user && role) {
+    if (moduleParam === 'salary' && !canAccessModule('salary', role)) {
+      return <Navigate to={getHomePath(role)} replace />
+    }
+    const dest =
+      moduleParam === 'salary' && canAccessModule('salary', role)
+        ? '/salary'
+        : getHomePath(role)
+    return <Navigate to={dest} replace />
   }
 
-  async function handleSubmit(e:any) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setSubmitting(true)
     try {
-      await login(email.trim(), password)
-    } catch (err:any) {
-      setError(err.message ?? 'Sign in failed')
+      const profile = await login(email.trim(), password)
+      if (moduleParam === 'salary' && !canAccessModule('salary', profile.role)) {
+        toast.error('Salary module is only for HR, Management, Finance, and IT')
+        navigate(getHomePath(profile.role), { replace: true })
+        return
+      }
+      if (moduleParam === 'salary') {
+        navigate('/salary', { replace: true })
+      } else {
+        navigate(getHomePath(profile.role), { replace: true })
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Sign in failed')
     } finally {
       setSubmitting(false)
     }
@@ -59,7 +77,9 @@ export function LoginPage() {
         </div>
 
         <div className="mb-8 text-center">
-          <p className="text-4xl font-semibold tracking-tight">PettyCash</p>
+          <div className='flex justify-center'>
+            <img src={logo} alt="Pcred Logo" className='h-16'/>
+          </div>
           <p className="mt-3 text-[var(--color-muted-foreground)]">
             Sign in to continue to{' '}
             <span className="font-medium text-[var(--color-foreground)]">{moduleName}</span>
@@ -69,7 +89,7 @@ export function LoginPage() {
         <Card className="glass border-[var(--color-border)]/80">
           <CardHeader>
             <CardTitle>User login</CardTitle>
-            <CardDescription>Connect Firebase Auth when ready.</CardDescription>
+            <CardDescription>Sign in with your Firebase account.</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={handleSubmit}>
@@ -106,7 +126,14 @@ export function LoginPage() {
                   </button>
                 </div>
               </div>
-              <Button className="w-full" disabled={submitting}>{submitting ? "Signing in" : "Sign in"}</Button>
+              {error && (
+                <p className="rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" className="w-full" disabled={submitting}>
+                {submitting ? 'Signing in…' : 'Sign in'}
+              </Button>
             </form>
           </CardContent>
         </Card>
