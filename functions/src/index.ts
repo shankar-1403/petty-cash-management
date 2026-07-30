@@ -3,7 +3,7 @@ import { getDatabase } from 'firebase-admin/database'
 import { onValueWritten } from 'firebase-functions/v2/database'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { defineSecret } from 'firebase-functions/params'
-import nodemailer from 'nodemailer'
+import * as nodemailer from 'nodemailer'
 
 initializeApp({
   databaseURL: 'https://petty-cash-management-6650a-default-rtdb.asia-southeast1.firebasedatabase.app',
@@ -53,26 +53,42 @@ async function sendEmails(
   subject: string,
   html: string,
 ): Promise<void> {
-  if (!recipients.length) return
+  if (!recipients.length) {
+    console.log('sendEmails: no recipients, skipping.')
+    return
+  }
+
+  const emailUser = M365_EMAIL.value()
+  const emailPass = M365_PASSWORD.value()
+
+  if (!emailUser || !emailPass) {
+    console.error('sendEmails: M365 credentials are empty — secrets may not be set or function not redeployed after setting them.')
+    return
+  }
+
+  console.log(`sendEmails: sending "${subject}" to [${recipients.map((r) => r.email).join(', ')}]`)
 
   const transporter = nodemailer.createTransport({
     host: 'smtp.office365.com',
     port: 587,
     secure: false,
     auth: {
-      user: M365_EMAIL.value(),
-      pass: M365_PASSWORD.value(),
+      user: emailUser,
+      pass: emailPass,
     },
   })
 
-  const from = `"Petty Cash System" <${M365_EMAIL.value()}>`
+  const from = `"Petty Cash System" <${emailUser}>`
 
   await Promise.all(
-    recipients.map((r) =>
-      transporter.sendMail({ from, to: r.email, subject, html }).catch((err) => {
-        console.error(`Failed to send email to ${r.email}:`, err)
-      }),
-    ),
+    recipients.map(async (r) => {
+      try {
+        await transporter.sendMail({ from, to: r.email, subject, html })
+        console.log(`sendEmails: ✓ sent to ${r.email}`)
+      } catch (err) {
+        console.error(`sendEmails: ✗ failed to send to ${r.email}:`, err)
+      }
+    }),
   )
 }
 
@@ -205,6 +221,8 @@ export const onCashRequestWritten = onValueWritten(
     const id = event.params.id
     const status = String(after.status ?? '')
     const prevStatus = before ? String(before.status ?? '') : null
+
+    console.log(`onCashRequestWritten: id=${id} prevStatus=${prevStatus ?? 'null'} status=${status}`)
     const amount = Number(after.amount ?? 0)
     const subject = String(after.subject ?? '')
     const createdByName = String(after.createdByName ?? '')
