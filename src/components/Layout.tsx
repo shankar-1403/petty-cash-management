@@ -105,8 +105,8 @@ export default function Layout() {
     }
     return subscribeUserNotifications(user.uid, role, (items) => {
       setUnread(items.filter((n) => !n.read).length)
-    })
-  }, [user, role])
+    }, profile?.permissions)
+  }, [user, role, profile?.permissions])
 
   useEffect(() => {
     if (!user) return

@@ -1,6 +1,7 @@
 import { onValue, push, ref, set, update } from 'firebase/database'
 import { db } from '@/lib/firebase'
 import type { UserRole } from '@/lib/role'
+import type { UserPermissions } from '@/types'
 
 export type NotificationType =
   | 'cash_new'
@@ -48,6 +49,13 @@ function parseNotification(
     createdAt: Number(raw.createdAt ?? 0),
     read,
   }
+}
+
+function notificationAllowed(type: NotificationType, permissions?: UserPermissions): boolean {
+  if (!permissions) return true
+  if (type.startsWith('cash_')) return permissions.cash === true
+  if (type === 'salary_shared') return permissions.salary === true
+  return true
 }
 
 function buildData(payload: NotifPayload, now: number): Record<string, unknown> {
@@ -144,13 +152,19 @@ export function subscribeUserNotifications(
   uid: string,
   role: UserRole | null | undefined,
   callback: (items: AppNotification[]) => void,
+  permissions?: UserPermissions,
 ): () => void {
   let roleRaw: Record<string, Record<string, unknown>> | null = null
   let userRaw: Record<string, Record<string, unknown>> | null = null
   let legacyRaw: Record<string, Record<string, unknown>> | null = null
   let reads: Record<string, boolean> = {}
 
-  const emit = () => callback(mergeInbox(roleRaw, userRaw, legacyRaw, reads))
+  const emit = () =>
+    callback(
+      mergeInbox(roleRaw, userRaw, legacyRaw, reads).filter((n) =>
+        notificationAllowed(n.type, permissions),
+      ),
+    )
 
   const unsubs: Array<() => void> = []
 

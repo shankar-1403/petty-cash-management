@@ -16,7 +16,7 @@ import {
 import { formatDateTime } from '@/lib/utils'
 
 export default function NotificationsPage() {
-  const { user, role } = useAuth()
+  const { user, role, profile } = useAuth()
   const navigate = useNavigate()
   const [items, setItems] = useState<AppNotification[] | null>(null)
   const [busy, setBusy] = useState(false)
@@ -26,8 +26,8 @@ export default function NotificationsPage() {
       setItems([])
       return
     }
-    return subscribeUserNotifications(user.uid, role, setItems)
-  }, [user, role])
+    return subscribeUserNotifications(user.uid, role, setItems, profile?.permissions)
+  }, [user, role, profile?.permissions])
 
   const unreadCount = useMemo(
     () => (items ?? []).filter((n) => !n.read).length,

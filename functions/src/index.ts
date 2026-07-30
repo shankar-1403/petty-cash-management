@@ -23,6 +23,12 @@ interface UserRecord {
   email?: string
   displayName?: string
   role?: string
+  permissions?: {
+    cash?: boolean
+    salary?: boolean
+    tracking?: boolean
+    users?: boolean
+  }
 }
 
 interface PaymentInstallment {
@@ -34,14 +40,17 @@ interface PaymentInstallment {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function getUsersByRole(role: string): Promise<{ email: string; displayName: string }[]> {
+async function getUsersByRole(
+  role: string,
+  permission: keyof NonNullable<UserRecord['permissions']>,
+): Promise<{ email: string; displayName: string }[]> {
   const snapshot = await getDatabase().ref('users').get()
   if (!snapshot.exists()) return []
 
   const result: { email: string; displayName: string }[] = []
   snapshot.forEach((child) => {
     const data = child.val() as UserRecord
-    if (data.role === role && data.email) {
+    if (data.role === role && data.email && data.permissions?.[permission] === true) {
       result.push({ email: data.email, displayName: data.displayName || data.email })
     }
   })
@@ -66,12 +75,12 @@ async function sendEmails(
     return
   }
 
-  console.log(`sendEmails: sending "${subject}" to [${recipients.map((r) => r.email).join(', ')}]`)
+  console.log(`[sendEmails] sending "${subject}" to [${recipients.map((r) => r.email).join(', ')}]`)
 
   const transporter = nodemailer.createTransport({
-    host: 'smtp.office365.com',
-    port: 587,
-    secure: false,
+    host: 'smtpout.secureserver.net',
+    port: 465,
+    secure: true,
     auth: {
       user: emailUser,
       pass: emailPass,
@@ -236,7 +245,7 @@ export const onCashRequestWritten = onValueWritten(
 
     // New request created → notify HR
     if (!before && status === 'pending_hr') {
-      const hrUsers = await getUsersByRole('hr')
+      const hrUsers = await getUsersByRole('hr', 'cash')
       await sendEmails(
         hrUsers,
         `New Payment Request: ${subject}`,
@@ -249,7 +258,7 @@ export const onCashRequestWritten = onValueWritten(
 
     // HR approved, amount ≤ threshold → Finance
     if (prevStatus === 'pending_hr' && status === 'pending_finance' && amount <= APPROVAL_THRESHOLD) {
-      const financeUsers = await getUsersByRole('finance')
+      const financeUsers = await getUsersByRole('finance', 'cash')
       await sendEmails(
         financeUsers,
         `Payment Request Ready for Settlement: ${subject}`,
@@ -260,7 +269,7 @@ export const onCashRequestWritten = onValueWritten(
 
     // HR approved, amount > threshold → Management
     if (prevStatus === 'pending_hr' && status === 'pending_management') {
-      const mgmtUsers = await getUsersByRole('management')
+      const mgmtUsers = await getUsersByRole('management', 'cash')
       await sendEmails(
         mgmtUsers,
         `Payment Request Awaiting Your Approval: ${subject}`,
@@ -271,7 +280,7 @@ export const onCashRequestWritten = onValueWritten(
 
     // Management approved → Finance
     if (prevStatus === 'pending_management' && status === 'pending_finance') {
-      const financeUsers = await getUsersByRole('finance')
+      const financeUsers = await getUsersByRole('finance', 'cash')
       await sendEmails(
         financeUsers,
         `Payment Request Approved by Management: ${subject}`,
@@ -299,7 +308,7 @@ export const sendDuePaymentReminders = onSchedule(
     const todayStr = formatDate(now)
     const tomorrowStr = formatDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))
 
-    const financeUsers = await getUsersByRole('finance')
+    const financeUsers = await getUsersByRole('finance', 'cash')
     if (!financeUsers.length) {
       console.log('No finance users found, skipping due reminders.')
       return
