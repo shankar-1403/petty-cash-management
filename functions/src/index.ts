@@ -40,21 +40,97 @@ interface PaymentInstallment {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+function normalizeRole(role: unknown): string | null {
+  const value = String(role ?? '')
+    .trim()
+    .toLowerCase()
+  if (value === 'admin') return 'admin'
+  if (value === 'hr') return 'hr'
+  if (value === 'management' || value === 'manager') return 'management'
+  if (value === 'finance' || value === 'accounts' || value === 'account') return 'finance'
+  if (value === 'it') return 'it'
+  return null
+}
+
+/** Match frontend: missing permissions → role defaults; explicit object → only true flags. */
+function userHasPermission(
+  data: UserRecord,
+  permission: keyof NonNullable<UserRecord['permissions']>,
+): boolean {
+  const role = normalizeRole(data.role)
+  if (!role) return false
+
+  if (data.permissions != null && typeof data.permissions === 'object') {
+    return data.permissions[permission] === true
+  }
+
+  // Role defaults (same as src/lib/role.ts)
+  switch (permission) {
+    case 'cash':
+      return true
+    case 'salary':
+      return role === 'hr' || role === 'management' || role === 'finance' || role === 'it'
+    case 'tracking':
+      return role === 'admin' || role === 'hr' || role === 'management' || role === 'it'
+    case 'users':
+      return role === 'it'
+    default:
+      return false
+  }
+}
+
 async function getUsersByRole(
   role: string,
   permission: keyof NonNullable<UserRecord['permissions']>,
 ): Promise<{ email: string; displayName: string }[]> {
   const snapshot = await getDatabase().ref('users').get()
-  if (!snapshot.exists()) return []
+  if (!snapshot.exists()) {
+    console.log(`getUsersByRole(${role}): no users node`)
+    return []
+  }
 
+  const wanted = normalizeRole(role)
   const result: { email: string; displayName: string }[] = []
+  let matchedRole = 0
+  let skippedNoEmail = 0
+  let skippedPermission = 0
+
   snapshot.forEach((child) => {
     const data = child.val() as UserRecord
-    if (data.role === role && data.email && data.permissions?.[permission] === true) {
-      result.push({ email: data.email, displayName: data.displayName || data.email })
+    if (normalizeRole(data.role) !== wanted) return
+    matchedRole += 1
+    if (!data.email) {
+      skippedNoEmail += 1
+      return
     }
+    if (!userHasPermission(data, permission)) {
+      skippedPermission += 1
+      return
+    }
+    result.push({ email: data.email, displayName: data.displayName || data.email })
   })
+
+  console.log(
+    `getUsersByRole(${role}, ${permission}): matchedRole=${matchedRole} recipients=${result.length} skippedNoEmail=${skippedNoEmail} skippedPermission=${skippedPermission}`,
+  )
   return result
+}
+
+/** Deduplicate recipients by email (case-insensitive). */
+function uniqueRecipients(
+  lists: { email: string; displayName: string }[][],
+): { email: string; displayName: string }[] {
+  const seen = new Set<string>()
+  const out: { email: string; displayName: string }[] = []
+  for (const list of lists) {
+    for (const r of list) {
+      const key = r.email.trim().toLowerCase()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      out.push(r)
+    }
+  }
+  return out
 }
 
 async function sendEmails(
@@ -87,7 +163,7 @@ async function sendEmails(
     },
   })
 
-  const from = `"Petty Cash System" <${emailUser}>`
+  const from = `"Kubera" <${emailUser}>`
 
   await Promise.all(
     recipients.map(async (r) => {
@@ -243,11 +319,14 @@ export const onCashRequestWritten = onValueWritten(
       { label: 'Raised by', value: createdByName },
     ]
 
-    // New request created → notify HR
+    // New request created → notify HR (+ IT)
     if (!before && status === 'pending_hr') {
-      const hrUsers = await getUsersByRole('hr', 'cash')
+      const recipients = uniqueRecipients([
+        await getUsersByRole('hr', 'cash'),
+        await getUsersByRole('it', 'cash'),
+      ])
       await sendEmails(
-        hrUsers,
+        recipients,
         `New Payment Request: ${subject}`,
         approvalEmailHtml('New payment request awaiting your approval', infoRows, link, 'Review Request'),
       )
@@ -258,9 +337,12 @@ export const onCashRequestWritten = onValueWritten(
 
     // HR approved, amount ≤ threshold → Finance
     if (prevStatus === 'pending_hr' && status === 'pending_finance' && amount <= APPROVAL_THRESHOLD) {
-      const financeUsers = await getUsersByRole('finance', 'cash')
+      const recipients = uniqueRecipients([
+        await getUsersByRole('finance', 'cash'),
+        await getUsersByRole('it', 'cash'),
+      ])
       await sendEmails(
-        financeUsers,
+        recipients,
         `Payment Request Ready for Settlement: ${subject}`,
         approvalEmailHtml('A payment request is ready for settlement', infoRows, link, 'Settle Payment'),
       )
@@ -269,9 +351,12 @@ export const onCashRequestWritten = onValueWritten(
 
     // HR approved, amount > threshold → Management
     if (prevStatus === 'pending_hr' && status === 'pending_management') {
-      const mgmtUsers = await getUsersByRole('management', 'cash')
+      const recipients = uniqueRecipients([
+        await getUsersByRole('management', 'cash'),
+        await getUsersByRole('it', 'cash'),
+      ])
       await sendEmails(
-        mgmtUsers,
+        recipients,
         `Payment Request Awaiting Your Approval: ${subject}`,
         approvalEmailHtml('A payment request approved by HR requires your approval', infoRows, link, 'Review Request'),
       )
@@ -280,9 +365,12 @@ export const onCashRequestWritten = onValueWritten(
 
     // Management approved → Finance
     if (prevStatus === 'pending_management' && status === 'pending_finance') {
-      const financeUsers = await getUsersByRole('finance', 'cash')
+      const recipients = uniqueRecipients([
+        await getUsersByRole('finance', 'cash'),
+        await getUsersByRole('it', 'cash'),
+      ])
       await sendEmails(
-        financeUsers,
+        recipients,
         `Payment Request Approved by Management: ${subject}`,
         approvalEmailHtml('A payment request approved by Management is ready for settlement', infoRows, link, 'Settle Payment'),
       )
@@ -308,9 +396,12 @@ export const sendDuePaymentReminders = onSchedule(
     const todayStr = formatDate(now)
     const tomorrowStr = formatDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))
 
-    const financeUsers = await getUsersByRole('finance', 'cash')
+    const financeUsers = uniqueRecipients([
+      await getUsersByRole('finance', 'cash'),
+      await getUsersByRole('it', 'cash'),
+    ])
     if (!financeUsers.length) {
-      console.log('No finance users found, skipping due reminders.')
+      console.log('No finance/IT users found, skipping due reminders.')
       return
     }
 
@@ -323,12 +414,26 @@ export const sendDuePaymentReminders = onSchedule(
       const status = String(raw.status ?? '')
       if (status !== 'pending_finance' && status !== 'partially_paid') continue
 
-      const plan = raw.paymentPlan as { installments: unknown } | undefined
-      if (!plan) continue
-
-      const installments = normalizeInstallments(plan.installments)
       const subject = String(raw.subject ?? '')
       const link = requestLink(id)
+      const plan = raw.paymentPlan as { installments: unknown } | undefined
+
+      if (!plan) {
+        // HR direct-to-finance path — use expected payment date
+        const dueDate = String(raw.expectedPaymentDate ?? '').slice(0, 10)
+        if (!dueDate) continue
+        const entry = {
+          subject,
+          amount: Number(raw.amount ?? 0),
+          dueDate,
+          link,
+        }
+        if (dueDate === todayStr) dueToday.push(entry)
+        else if (dueDate === tomorrowStr) dueTomorrow.push(entry)
+        continue
+      }
+
+      const installments = normalizeInstallments(plan.installments)
 
       for (const inst of installments) {
         if (inst.status === 'paid') continue
