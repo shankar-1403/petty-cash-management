@@ -96,7 +96,9 @@ export default function SalaryDetailPage() {
   const showHrHeadSend = canActAsHrHead && sheet.status === 'hr_head_approved'
   const showHrHeadReject =
     canActAsHrHead && (sheet.status === 'pending_hr_head' || sheet.status === 'hr_head_approved')
-  const showMgmt = canApproveManagement(role) && sheet.status === 'shared_management'
+  const showMgmt =
+    canApproveManagement(role) &&
+    (sheet.status === 'shared_management' || sheet.status === 'hr_head_approved')
   const showFinance = canSettleFinance(role) && sheet.status === 'pending_finance'
   const showActions =
     showHrSendToHead ||

@@ -245,14 +245,14 @@ export async function hrHeadApproveSalary(
   await Promise.all([
     createNotificationForUsers([current.createdBy].filter(Boolean), {
       title: 'Salary sheet approved by HR Head',
-      body: `${actor.name} approved “${current.title}” (${current.period}). It can now be sent to Management.`,
+      body: `${actor.name} approved “${current.title}” (${current.period}). Management can now review it.`,
       type: 'salary_shared',
       link: `/salary/${id}`,
       requestId: id,
     }),
-    notifyRoles(['it'], {
+    notifyRoles(['management', 'it'], {
       title: 'Salary sheet approved by HR Head',
-      body: `${actor.name} approved “${current.title}” (${current.period}).`,
+      body: `${actor.name} approved “${current.title}” (${current.period}). It is ready for Management review.`,
       type: 'salary_shared',
       link: `/salary/${id}`,
       requestId: id,
@@ -344,7 +344,7 @@ export async function managementApproveSalary(
 ): Promise<void> {
   const current = await getSalarySheet(id)
   if (!current) throw new Error('Sheet not found')
-  if (current.status !== 'shared_management') {
+  if (current.status !== 'hr_head_approved' && current.status !== 'shared_management') {
     throw new Error('Sheet is not awaiting Management approval')
   }
 
@@ -379,7 +379,7 @@ export async function managementRejectSalary(
 ): Promise<void> {
   const current = await getSalarySheet(id)
   if (!current) throw new Error('Sheet not found')
-  if (current.status !== 'shared_management') {
+  if (current.status !== 'hr_head_approved' && current.status !== 'shared_management') {
     throw new Error('Sheet is not awaiting Management approval')
   }
 
