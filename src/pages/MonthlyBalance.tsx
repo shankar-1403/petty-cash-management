@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { PiggyBank, Plus } from 'lucide-react'
+import { PiggyBank, Plus, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input, Label } from '@/components/ui/input'
@@ -30,6 +30,7 @@ import {
   summarizeMonthWithCarry,
   type MonthlyBalance,
 } from '@/lib/balance'
+import { downloadPettyCashExpenseReport } from '@/lib/petty-cash-report'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import type { CashRequest } from '@/types'
 
@@ -119,6 +120,20 @@ export default function MonthlyBalancePage() {
     }
   }
 
+  function onExportReport() {
+    try {
+      downloadPettyCashExpenseReport({
+        yearMonth,
+        creditsByMonth,
+        monthBalance: balance,
+        requests,
+      })
+      toast.success(`Exported report for ${formatYearMonthLabel(yearMonth)}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Export failed')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -129,6 +144,15 @@ export default function MonthlyBalancePage() {
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="border-emerald-600/40 bg-emerald-600/15 text-emerald-700 hover:bg-emerald-600/25 dark:text-emerald-300"
+            onClick={onExportReport}
+          >
+            <Download className="h-4 w-4" />
+            Export Report
+          </Button>
           <div className="w-32">
             <Label className="mb-1.5 block text-xs">Year</Label>
             <Select value={year} onValueChange={setYear}>
@@ -191,9 +215,8 @@ export default function MonthlyBalancePage() {
           <CardContent className="p-5">
             <p className="text-sm text-[var(--color-muted-foreground)]">Remaining</p>
             <p
-              className={`mt-2 text-2xl font-semibold tracking-tight ${
-                summary.remaining < 0 ? 'text-red-600' : ''
-              }`}
+              className={`mt-2 text-2xl font-semibold tracking-tight ${summary.remaining < 0 ? 'text-red-600' : ''
+                }`}
             >
               {formatCurrency(summary.remaining)}
             </p>
