@@ -48,6 +48,7 @@ function parseRequest(id: string, raw: Record<string, unknown>): CashRequest {
     hasInvoice: Boolean(raw.hasInvoice),
     invoiceUrl: raw.invoiceUrl ? String(raw.invoiceUrl) : undefined,
     category: String(raw.category ?? ''),
+    companyName: raw.companyName ? String(raw.companyName) : undefined,
     notes: raw.notes ? String(raw.notes) : undefined,
     requestDate: Number(raw.requestDate ?? raw.createdAt ?? 0),
     expectedPaymentDate: String(raw.expectedPaymentDate ?? ''),
@@ -75,6 +76,7 @@ export async function createCashRequest(input: {
   hasInvoice: boolean
   invoiceFile?: File | null
   category: string
+  companyName?: string
   requestDate: number
   expectedPaymentDate: string
   notes?: string
@@ -108,6 +110,7 @@ export async function createCashRequest(input: {
     amount,
     hasInvoice: Boolean(input.hasInvoice),
     category: input.category.trim(),
+    ...(input.companyName?.trim() ? { companyName: input.companyName.trim() } : {}),
     requestDate: input.requestDate,
     expectedPaymentDate: input.expectedPaymentDate,
     status: 'pending_hr',

@@ -32,6 +32,7 @@ export default function CashCreatePage() {
   const navigate = useNavigate()
   const [requestDate, setRequestDate] = useState(() => toDatetimeLocalValue(Date.now()))
   const [subject, setSubject] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [category, setCategory] = useState('')
   const [invoiceChoice, setInvoiceChoice] = useState<'yes' | 'no'>('no')
   const [amount, setAmount] = useState('')
@@ -101,6 +102,7 @@ export default function CashCreatePage() {
         hasInvoice: invoiceChoice === 'yes',
         invoiceFile: invoiceChoice === 'yes' ? invoiceFile : null,
         category,
+        companyName,
         requestDate: requestDateMs,
         expectedPaymentDate,
         createdBy: user.uid,
@@ -157,6 +159,16 @@ export default function CashCreatePage() {
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="e.g. Office supplies"
                 required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="companyName">Company name (optional)</Label>
+              <Input
+                id="companyName"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="e.g. ABC Traders"
               />
             </div>
 

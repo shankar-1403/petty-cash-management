@@ -51,6 +51,7 @@ export interface CashRequest {
   hasInvoice: boolean
   invoiceUrl?: string
   category: string
+  companyName?: string
   notes?: string
   /** Request date/time chosen by Admin (ms) */
   requestDate: number
