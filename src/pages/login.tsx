@@ -9,6 +9,7 @@ import { Input, Label } from '@/components/ui/input'
 import { useAuth } from '@/context/AuthContext'
 import { canAccessModule, getHomePath } from '@/lib/role'
 import logo from "../assets/pcred-logo.webp"
+import logoWhite from "../assets/pcred-logo-white.webp"
 
 export function LoginPage() {
   const { user, role, loading, login } = useAuth()
@@ -68,7 +69,8 @@ export function LoginPage() {
       >
         <div className="mb-8 text-center">
           <div className='flex justify-center'>
-            <img src={logo} alt="Pcred Logo" className='h-14'/>
+            <img src={logo} alt="Pcred Logo" className='h-14 dark:hidden'/>
+            <img src={logoWhite} alt="Pcred Logo" className='hidden h-14 dark:block'/>
           </div>
         </div>
 
