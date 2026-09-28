@@ -42,6 +42,11 @@ export default function TrackingPage() {
         cell: ({ row }) => <span className="font-medium">{row.original.subject}</span>,
       },
       {
+        accessorKey: 'companyName',
+        header: 'Company',
+        cell: ({ row }) => row.original.companyName || '—',
+      },
+      {
         id: 'waiting',
         header: 'Waiting on',
         cell: ({ row }) => {

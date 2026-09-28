@@ -38,6 +38,7 @@ export default function CashEditPage() {
   const [existing, setExisting] = useState<CashRequest | null>(null)
   const [requestDate, setRequestDate] = useState('')
   const [subject, setSubject] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [category, setCategory] = useState('')
   const [invoiceChoice, setInvoiceChoice] = useState<'yes' | 'no'>('no')
   const [amount, setAmount] = useState('')
@@ -53,6 +54,7 @@ export default function CashEditPage() {
       if (data) {
         setRequestDate(toDatetimeLocalValue(data.requestDate || data.createdAt))
         setSubject(data.subject)
+        setCompanyName(data.companyName || '')
         setCategory(data.category || '')
         setInvoiceChoice(data.hasInvoice ? 'yes' : 'no')
         setAmount(String(data.amount))
@@ -116,8 +118,8 @@ export default function CashEditPage() {
     e.preventDefault()
     if (!user || !profile || !id) return
 
-    if (!requestDate || !subject.trim() || !category) {
-      toast.error('Date, subject, and category are required')
+    if (!requestDate || !subject.trim() || !companyName.trim() || !category) {
+      toast.error('Date, subject, company name, and category are required')
       return
     }
     if (!Number.isFinite(amountValue) || amountValue <= 0) {
@@ -148,6 +150,7 @@ export default function CashEditPage() {
         invoiceFile: invoiceChoice === 'yes' ? invoiceFile : null,
         clearInvoiceFile: invoiceChoice === 'no',
         category,
+        companyName,
         requestDate: requestDateMs,
         expectedPaymentDate,
         actorUid: user.uid,
@@ -199,6 +202,17 @@ export default function CashEditPage() {
                 id="subject"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="companyName">Company name</Label>
+              <Input
+                id="companyName"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="e.g. ABC Traders"
                 required
               />
             </div>

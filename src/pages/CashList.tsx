@@ -33,6 +33,11 @@ export default function CashListPage() {
         cell: ({ row }) => <span className="font-medium">{row.original.subject}</span>,
       },
       {
+        accessorKey: 'companyName',
+        header: 'Company',
+        cell: ({ row }) => row.original.companyName || '—',
+      },
+      {
         accessorKey: 'category',
         header: 'Category',
         cell: ({ row }) => row.original.category || '—',

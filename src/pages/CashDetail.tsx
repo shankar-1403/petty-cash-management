@@ -259,6 +259,10 @@ export default function CashDetailPage() {
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <div>
+              <p className="text-xs text-[var(--color-muted-foreground)]">Company name</p>
+              <p className="text-sm font-medium">{request.companyName || '—'}</p>
+            </div>
+            <div>
               <p className="text-xs text-[var(--color-muted-foreground)]">Date (Timestamp)</p>
               <p className="text-sm">{formatDateTime(request.requestDate || request.createdAt)}</p>
             </div>

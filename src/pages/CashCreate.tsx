@@ -71,6 +71,10 @@ export default function CashCreatePage() {
       toast.error('Subject is required')
       return
     }
+    if (!companyName.trim()) {
+      toast.error('Company name is required')
+      return
+    }
     if (!category) {
       toast.error('Select a category')
       return
@@ -163,12 +167,13 @@ export default function CashCreatePage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="companyName">Company name (optional)</Label>
+              <Label htmlFor="companyName">Company name</Label>
               <Input
                 id="companyName"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="e.g. ABC Traders"
+                required
               />
             </div>
 

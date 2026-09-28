@@ -311,10 +311,12 @@ export const onCashRequestWritten = onValueWritten(
     const amount = Number(after.amount ?? 0)
     const subject = String(after.subject ?? '')
     const createdByName = String(after.createdByName ?? '')
+    const companyName = String(after.companyName ?? '') || '—'
     const link = requestLink(id)
 
     const infoRows = [
       { label: 'Subject', value: subject },
+      { label: 'Company', value: companyName },
       { label: 'Amount', value: formatAmount(amount) },
       { label: 'Raised by', value: createdByName },
     ]

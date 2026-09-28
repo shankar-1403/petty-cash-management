@@ -196,7 +196,10 @@ export default function DashboardPage() {
                 >
                   <div>
                     <p className="text-sm font-medium">{req.subject}</p>
-                    <p className="text-xs text-[var(--color-muted-foreground)]">{req.createdByName}</p>
+                    <p className="text-xs text-[var(--color-muted-foreground)]">
+                      {req.companyName ? `${req.companyName} · ` : ''}
+                      {req.createdByName}
+                    </p>
                   </div>
                   <Badge variant="outline">{CASH_STATUS_LABELS[req.status]}</Badge>
                 </Link>

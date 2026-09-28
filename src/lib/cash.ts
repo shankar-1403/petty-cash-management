@@ -76,13 +76,15 @@ export async function createCashRequest(input: {
   hasInvoice: boolean
   invoiceFile?: File | null
   category: string
-  companyName?: string
+  companyName: string
   requestDate: number
   expectedPaymentDate: string
   notes?: string
   createdBy: string
   createdByName: string
 }): Promise<string> {
+  if (!input.companyName?.trim()) throw new Error('Company name is required')
+
   const newRef = push(ref(db, 'cashRequests'))
   const id = newRef.key
   if (!id) throw new Error('Could not create request id')
@@ -110,7 +112,7 @@ export async function createCashRequest(input: {
     amount,
     hasInvoice: Boolean(input.hasInvoice),
     category: input.category.trim(),
-    ...(input.companyName?.trim() ? { companyName: input.companyName.trim() } : {}),
+    companyName: input.companyName.trim(),
     requestDate: input.requestDate,
     expectedPaymentDate: input.expectedPaymentDate,
     status: 'pending_hr',
@@ -160,6 +162,7 @@ export async function updateCashRequest(
     invoiceFile?: File | null
     clearInvoiceFile?: boolean
     category: string
+    companyName: string
     requestDate: number
     expectedPaymentDate: string
     notes?: string
@@ -167,6 +170,7 @@ export async function updateCashRequest(
     actorName: string
   },
 ): Promise<void> {
+  if (!input.companyName?.trim()) throw new Error('Company name is required')
   const current = await getCashRequest(id)
   if (!current) throw new Error('Request not found')
   if (current.status !== 'pending_hr' && current.status !== 'rejected') {
@@ -197,6 +201,7 @@ export async function updateCashRequest(
     amount,
     hasInvoice: Boolean(input.hasInvoice),
     category: input.category.trim(),
+    companyName: input.companyName.trim(),
     requestDate: input.requestDate,
     expectedPaymentDate: input.expectedPaymentDate,
     notes: input.notes?.trim() || null,
