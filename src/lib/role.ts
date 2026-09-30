@@ -26,7 +26,7 @@ export const ALL_ROLES: UserRole[] = [
   ROLES.IT,
 ]
 
-export type AppModule = 'cash' | 'salary'
+export type AppModule = 'cash' | 'salary' | 'abovetwo'
 export type PermissionKey = keyof UserPermissions
 
 export function normalizeRole(role: unknown): UserRole | null {
@@ -95,6 +95,10 @@ export function canAccessSalary(role: UserRole | null | undefined): boolean {
   return canAccessModule('salary', role)
 }
 
+export function canAccessAbove2k(role: UserRole | null | undefined): boolean {
+  return canAccessModule('abovetwo', role)
+}
+
 /** Role-based defaults when a user has no explicit permissions object. */
 export function roleDefaultPermission(role: UserRole, key: PermissionKey): boolean {
   switch (key) {
@@ -106,6 +110,8 @@ export function roleDefaultPermission(role: UserRole, key: PermissionKey): boole
       return canViewTracking(role)
     case 'users':
       return canManageUsers(role)
+    case 'abovetwo':
+      return canAccessAbove2k(role)
     default:
       return false
   }

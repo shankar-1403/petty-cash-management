@@ -1,6 +1,6 @@
 import type { UserRole } from '@/lib/role'
 
-export type AppModule = 'cash' | 'salary'
+export type AppModule = 'cash' | 'salary' | 'abovetwo'
 
 export type CashStatus =
   | 'pending_hr'
@@ -128,6 +128,7 @@ export interface SalarySheet {
 export interface UserPermissions {
   cash?: boolean
   salary?: boolean
+  abovetwo?: boolean
   tracking?: boolean
   users?: boolean
 }

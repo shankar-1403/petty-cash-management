@@ -75,6 +75,9 @@ function linksForProfile(profile: AppUserProfile) {
   if (canApproveHr(role)) {
     items.push({ to: '/monthly-balance', label: 'Monthly Balance', icon: PiggyBank })
   }
+  if (hasPermission(profile, 'abovetwo')){
+    items.push({ to: '/abovetwo', label: 'Above 2k', icon: PiggyBank })
+  }
   if (hasPermission(profile, 'salary')) {
     items.push({ to: '/salary', label: 'Salary', icon: Banknote })
   }
@@ -85,6 +88,7 @@ function linksForProfile(profile: AppUserProfile) {
     items.push({ to: '/admin/users', label: 'Users & Roles', icon: Users })
   }
 
+  
   items.push({ to: '/settings', label: 'Settings', icon: Settings })
 
   return items
