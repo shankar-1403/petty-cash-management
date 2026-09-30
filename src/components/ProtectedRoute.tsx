@@ -7,7 +7,7 @@ export default function ProtectedRoute({
   permission,
 }: {
   roles?: UserRole[]
-  permission?: PermissionKey
+  permission?: PermissionKey | PermissionKey[]
 }) {
   const { user, profile, role, loading } = useAuth()
   const location = useLocation()
@@ -28,7 +28,8 @@ export default function ProtectedRoute({
     return <Navigate to={getHomePath(role)} replace />
   }
 
-  if (permission && !hasPermission(profile, permission)) {
+  const required = permission == null ? [] : Array.isArray(permission) ? permission : [permission]
+  if (required.length && !required.some((key) => hasPermission(profile, key))) {
     return <Navigate to={getHomePath(role)} replace />
   }
 

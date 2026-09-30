@@ -28,6 +28,7 @@ interface UserRecord {
     salary?: boolean
     tracking?: boolean
     users?: boolean
+    abovetwo?: boolean
   }
 }
 
@@ -74,6 +75,8 @@ function userHasPermission(
       return role === 'admin' || role === 'hr' || role === 'management' || role === 'it'
     case 'users':
       return role === 'it'
+    case 'abovetwo':
+      return role === 'management' || role === 'it'
     default:
       return false
   }
@@ -113,6 +116,21 @@ async function getUsersByRole(
   console.log(
     `getUsersByRole(${role}, ${permission}): matchedRole=${matchedRole} recipients=${result.length} skippedNoEmail=${skippedNoEmail} skippedPermission=${skippedPermission}`,
   )
+  return result
+}
+
+/** Users of any role with the explicit `abovetwo` permission (Management-level approval > ₹2k). */
+async function getAboveTwoApprovers(): Promise<{ email: string; displayName: string }[]> {
+  const snapshot = await getDatabase().ref('users').get()
+  if (!snapshot.exists()) return []
+  const result: { email: string; displayName: string }[] = []
+  snapshot.forEach((child) => {
+    const data = child.val() as UserRecord
+    if (data.email && data.permissions?.abovetwo === true) {
+      result.push({ email: data.email, displayName: data.displayName || data.email })
+    }
+  })
+  console.log(`getAboveTwoApprovers: recipients=${result.length}`)
   return result
 }
 
@@ -355,6 +373,7 @@ export const onCashRequestWritten = onValueWritten(
     if (prevStatus === 'pending_hr' && status === 'pending_management') {
       const recipients = uniqueRecipients([
         await getUsersByRole('management', 'cash'),
+        await getAboveTwoApprovers(),
         await getUsersByRole('it', 'cash'),
       ])
       await sendEmails(

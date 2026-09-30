@@ -96,7 +96,7 @@ export function canAccessSalary(role: UserRole | null | undefined): boolean {
 }
 
 export function canAccessAbove2k(role: UserRole | null | undefined): boolean {
-  return canAccessModule('abovetwo', role)
+  return canApproveManagement(role)
 }
 
 /** Role-based defaults when a user has no explicit permissions object. */
@@ -131,6 +131,14 @@ export function hasPermission(
     return profile.permissions[key] === true
   }
   return roleDefaultPermission(profile.role, key)
+}
+
+/** Management-level approval for requests above the threshold (> ₹2k). */
+export function canApproveAboveTwo(
+  profile: { role: UserRole; permissions?: UserPermissions } | null | undefined,
+): boolean {
+  if (!profile?.role) return false
+  return canApproveManagement(profile.role) || hasPermission(profile, 'abovetwo')
 }
 
 export function roleLabel(role: string | null | undefined): string {

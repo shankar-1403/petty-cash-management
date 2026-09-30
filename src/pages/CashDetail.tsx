@@ -33,8 +33,8 @@ import {
   waitingOnLabel,
 } from '@/lib/cash'
 import {
+  canApproveAboveTwo,
   canApproveHr,
-  canApproveManagement,
   canEditCash,
   canSettleFinance,
 } from '@/lib/role'
@@ -219,7 +219,7 @@ export default function CashDetailPage() {
 
   const showHrActions = canApproveHr(role) && request.status === 'pending_hr'
   const showMgmtActions =
-    canApproveManagement(role) && request.status === 'pending_management'
+    canApproveAboveTwo(profile) && request.status === 'pending_management'
   const showFinance =
     canSettleFinance(role) &&
     (request.status === 'pending_finance' || request.status === 'partially_paid')

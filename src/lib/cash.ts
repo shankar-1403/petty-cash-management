@@ -40,6 +40,15 @@ async function findUserByDisplayName(
   return null
 }
 
+async function findAboveTwoApproverUids(): Promise<string[]> {
+  const snap = await get(ref(db, 'users'))
+  if (!snap.exists()) return []
+  const val = snap.val() as Record<string, { permissions?: { abovetwo?: boolean } }>
+  return Object.entries(val)
+    .filter(([, user]) => user.permissions?.abovetwo === true)
+    .map(([uid]) => uid)
+}
+
 function parseRequest(id: string, raw: Record<string, unknown>): CashRequest {
   return {
     id,
@@ -297,13 +306,21 @@ export async function hrApproveRequest(
 
   const notifyTarget: UserRole[] =
     nextStatus === 'pending_finance' ? ['finance', 'it'] : ['management', 'it']
-  await notifyRoles(notifyTarget, {
-    title: 'Request approved by HR',
-    body: `${actor.name} approved “${current.subject}” (${formatCurrency(current.amount)}). ${message}`,
-    type: 'cash_hr_approved',
-    link: `/cash/${id}`,
-    requestId: id,
-  }).catch((err) => console.error('Failed to create notifications', err))
+  const extraUids =
+    nextStatus === 'pending_management'
+      ? await findAboveTwoApproverUids().catch(() => [])
+      : []
+  await notifyRoles(
+    notifyTarget,
+    {
+      title: 'Request approved by HR',
+      body: `${actor.name} approved “${current.subject}” (${formatCurrency(current.amount)}). ${message}`,
+      type: 'cash_hr_approved',
+      link: `/cash/${id}`,
+      requestId: id,
+    },
+    extraUids,
+  ).catch((err) => console.error('Failed to create notifications', err))
 }
 
 export async function hrRejectRequest(

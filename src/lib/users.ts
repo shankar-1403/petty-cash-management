@@ -42,6 +42,7 @@ function sanitizePermissions(perms?: UserPermissions | null): UserPermissions | 
   const next: UserPermissions = {}
   if (perms.cash === true) next.cash = true
   if (perms.salary === true) next.salary = true
+  if (perms.abovetwo === true) next.abovetwo = true
   if (perms.tracking === true) next.tracking = true
   if (perms.users === true) next.users = true
   return Object.keys(next).length ? next : null

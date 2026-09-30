@@ -18,6 +18,7 @@ import UsersRolesPage from '@/pages/UsersRoles'
 import NotificationsPage from '@/pages/Notifications'
 import SettingsPage from '@/pages/Settings'
 import MonthlyBalancePage from '@/pages/MonthlyBalance'
+import AboveTwoPage from '@/pages/AboveTwo'
 import { ALL_ROLES, ROLES } from '@/lib/role'
 
 export default function App() {
@@ -57,7 +58,10 @@ export default function App() {
               >
                 <Route index element={<CashEditPage />} />
               </Route>
-              <Route path="/cash/:id" element={<ProtectedRoute permission="cash" />}>
+              <Route path="/abovetwo" element={<ProtectedRoute permission="abovetwo" />}>
+                <Route index element={<AboveTwoPage />} />
+              </Route>
+              <Route path="/cash/:id" element={<ProtectedRoute permission={['cash', 'abovetwo']} />}>
                 <Route index element={<CashDetailPage />} />
               </Route>
 

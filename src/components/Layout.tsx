@@ -14,6 +14,7 @@ import {
   Moon,
   Sun,
   PiggyBank,
+  BadgeCheck,
 } from 'lucide-react'
 import {
   ROLES,
@@ -75,8 +76,8 @@ function linksForProfile(profile: AppUserProfile) {
   if (canApproveHr(role)) {
     items.push({ to: '/monthly-balance', label: 'Monthly Balance', icon: PiggyBank })
   }
-  if (hasPermission(profile, 'abovetwo')){
-    items.push({ to: '/abovetwo', label: 'Above 2k', icon: PiggyBank })
+  if (hasPermission(profile, 'abovetwo')) {
+    items.push({ to: '/abovetwo', label: 'Above 2k', icon: BadgeCheck })
   }
   if (hasPermission(profile, 'salary')) {
     items.push({ to: '/salary', label: 'Salary', icon: Banknote })

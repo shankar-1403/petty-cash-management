@@ -89,7 +89,7 @@ export default function UsersRolesPage() {
         permissions: {
           cash: true,
           salary: newRole !== 'admin',
-          abovetwo: true,
+          abovetwo: newRole === 'management' || newRole === 'it',
           tracking:
             newRole === 'admin' ||
             newRole === 'hr' ||
@@ -231,7 +231,7 @@ export default function UsersRolesPage() {
                 ['cash', 'Cash module'],
                 ['salary', 'Salary module'],
                 ['tracking', 'Tracking'],
-                ['abovetwo', 'Above 2k'],
+                ['abovetwo', 'Above 2k (Management-level approval)'],
                 ['users', 'Users & roles'],
               ] as const
             ).map(([key, label]) => (
