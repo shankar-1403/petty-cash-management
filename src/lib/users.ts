@@ -6,8 +6,8 @@ import {
 import { get, onValue, ref, set } from 'firebase/database'
 import { auth, db } from '@/lib/firebase'
 import type { UserRole } from '@/lib/role'
-import { normalizeRole } from '@/lib/role'
-import type { AppUserProfile, UserPermissions } from '@/types'
+import { normalizeRole, parseManagementLevel } from '@/lib/role'
+import type { AppUserProfile, ManagementLevel, UserPermissions } from '@/types'
 
 function parseUser(uid: string, raw: Record<string, unknown>): AppUserProfile | null {
   const role = normalizeRole(raw.role)
@@ -18,8 +18,22 @@ function parseUser(uid: string, raw: Record<string, unknown>): AppUserProfile | 
     displayName: String(raw.displayName ?? raw.email ?? 'User'),
     role,
     permissions: (raw.permissions as UserPermissions | undefined) ?? undefined,
+    managementLevel: parseManagementLevel(raw.managementLevel),
     createdAt: Number(raw.createdAt ?? 0),
   }
+}
+
+export async function findUidsByManagementLevel(level: ManagementLevel): Promise<string[]> {
+  const snap = await get(ref(db, 'users'))
+  if (!snap.exists()) return []
+  const val = snap.val() as Record<string, Record<string, unknown>>
+  return Object.entries(val)
+    .filter(
+      ([, raw]) =>
+        normalizeRole(raw.role) === 'management' &&
+        parseManagementLevel(raw.managementLevel) === level,
+    )
+    .map(([uid]) => uid)
 }
 
 export function subscribeUsers(callback: (users: AppUserProfile[]) => void): () => void {
@@ -42,7 +56,6 @@ function sanitizePermissions(perms?: UserPermissions | null): UserPermissions | 
   const next: UserPermissions = {}
   if (perms.cash === true) next.cash = true
   if (perms.salary === true) next.salary = true
-  if (perms.abovetwo === true) next.abovetwo = true
   if (perms.tracking === true) next.tracking = true
   if (perms.users === true) next.users = true
   return Object.keys(next).length ? next : null
@@ -54,6 +67,7 @@ export async function updateUserProfile(
     displayName: string
     role: UserRole
     permissions?: UserPermissions
+    managementLevel?: ManagementLevel
   },
 ): Promise<void> {
   const name = input.displayName.trim()
@@ -73,6 +87,9 @@ export async function updateUserProfile(
     createdAt: Number(current.createdAt ?? Date.now()),
   }
   if (permissions) payload.permissions = permissions
+  if (input.role === 'management' && input.managementLevel) {
+    payload.managementLevel = input.managementLevel
+  }
 
   await set(ref(db, `users/${uid}`), payload)
 }
@@ -99,6 +116,7 @@ export async function createDepartmentUser(input: {
   displayName: string
   role: UserRole
   permissions?: UserPermissions
+  managementLevel?: ManagementLevel
   itEmail: string
   itPassword: string
 }): Promise<string> {
@@ -112,6 +130,9 @@ export async function createDepartmentUser(input: {
     role: input.role,
     createdAt: Date.now(),
     ...(permissions ? { permissions } : {}),
+    ...(input.role === 'management' && input.managementLevel
+      ? { managementLevel: input.managementLevel }
+      : {}),
   })
 
   await signOut(auth)

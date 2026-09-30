@@ -1,6 +1,6 @@
 import type { UserRole } from '@/lib/role'
 
-export type AppModule = 'cash' | 'salary' | 'abovetwo'
+export type AppModule = 'cash' | 'salary'
 
 export type CashStatus =
   | 'pending_hr'
@@ -77,12 +77,14 @@ export interface CashRequest {
 
 export type SalaryStatus =
   | 'draft'
-  | 'pending_hr_head'
-  | 'hr_head_approved'
-  | 'shared_management'
+  | 'pending_mgmt_lower'
+  | 'pending_mgmt_higher'
+  | 'pending_mgmt_head'
   | 'pending_finance'
   | 'approved'
   | 'rejected'
+
+export type ManagementLevel = 'lower' | 'higher' | 'head'
 
 export interface SalaryRow {
   id: string
@@ -115,12 +117,9 @@ export interface SalarySheet {
   createdAt: number
   updatedAt: number
   sharedAt?: number
-  sharedWithHrHeadAt?: number
-  approvals?: {
-    hrHead?: ApprovalRecord
-    management?: ApprovalRecord
-  }
-  rejection?: ApprovalRecord & { reason?: string }
+  approvals?: Partial<Record<ManagementLevel, ApprovalRecord>>
+
+  rejection?: ApprovalRecord & { reason?: string; level?: ManagementLevel }
   timeline: TimelineEvent[]
 }
 
@@ -128,7 +127,6 @@ export interface SalarySheet {
 export interface UserPermissions {
   cash?: boolean
   salary?: boolean
-  abovetwo?: boolean
   tracking?: boolean
   users?: boolean
 }
@@ -139,11 +137,16 @@ export interface AppUserProfile {
   displayName: string
   role: UserRole
   permissions?: UserPermissions
+  /** Only for Management users: which salary approval step they own */
+  managementLevel?: ManagementLevel
   createdAt: number
   [key: string]: unknown
 }
 
 export const APPROVAL_THRESHOLD = 2000
+
+/** Management user who approves requests at or below the threshold (after HR) */
+export const LOW_AMOUNT_MANAGEMENT_APPROVER_UID = 'xaNIHMxmHAMSLe1wgXSGAQLHYp83'
 
 /** Amounts below this are auto-mapped to this HR assignee */
 export const LOW_AMOUNT_ASSIGNEE_NAME = 'Puja Sharma'
@@ -171,13 +174,18 @@ export const CASH_STATUS_LABELS: Record<CashStatus, string> = {
 
 export const SALARY_STATUS_LABELS: Record<SalaryStatus, string> = {
   draft: 'Draft (HR)',
-  pending_hr_head: 'Pending HR Head',
-  hr_head_approved: 'Approved by HR Head',
-  shared_management: 'Shared with Management',
+  pending_mgmt_lower: 'Pending Lower Management',
+  pending_mgmt_higher: 'Pending Higher Management',
+  pending_mgmt_head: 'Pending Head Management',
   pending_finance: 'Pending Finance',
   approved: 'Approved',
   rejected: 'Rejected',
 }
 
-/** Fixed HR Head account that reviews salary sheets before Management */
-export const HR_HEAD_UID = 'xaNIHMxmHAMSLe1wgXSGAQLHYp83'
+export const MANAGEMENT_LEVELS: ManagementLevel[] = ['lower', 'higher', 'head']
+
+export const MANAGEMENT_LEVEL_LABELS: Record<ManagementLevel, string> = {
+  lower: 'Lower Management',
+  higher: 'Higher Management',
+  head: 'Head Management',
+}

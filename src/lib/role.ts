@@ -1,4 +1,4 @@
-import type { UserPermissions } from '@/types'
+import type { ManagementLevel, UserPermissions } from '@/types'
 
 export const ROLES = {
   ADMIN: 'admin',
@@ -26,7 +26,7 @@ export const ALL_ROLES: UserRole[] = [
   ROLES.IT,
 ]
 
-export type AppModule = 'cash' | 'salary' | 'abovetwo'
+export type AppModule = 'cash' | 'salary'
 export type PermissionKey = keyof UserPermissions
 
 export function normalizeRole(role: unknown): UserRole | null {
@@ -40,6 +40,12 @@ export function normalizeRole(role: unknown): UserRole | null {
   if (value === 'finance' || value === 'accounts' || value === 'account') return 'finance'
   if (value === 'it') return 'it'
   return null
+}
+
+export function parseManagementLevel(value: unknown): ManagementLevel | undefined {
+  const v = String(value ?? '').trim().toLowerCase()
+  if (v === 'lower' || v === 'higher' || v === 'head') return v
+  return undefined
 }
 
 export function getHomePath(role: UserRole | null | undefined): string {
@@ -95,10 +101,6 @@ export function canAccessSalary(role: UserRole | null | undefined): boolean {
   return canAccessModule('salary', role)
 }
 
-export function canAccessAbove2k(role: UserRole | null | undefined): boolean {
-  return canApproveManagement(role)
-}
-
 /** Role-based defaults when a user has no explicit permissions object. */
 export function roleDefaultPermission(role: UserRole, key: PermissionKey): boolean {
   switch (key) {
@@ -110,8 +112,6 @@ export function roleDefaultPermission(role: UserRole, key: PermissionKey): boole
       return canViewTracking(role)
     case 'users':
       return canManageUsers(role)
-    case 'abovetwo':
-      return canAccessAbove2k(role)
     default:
       return false
   }
@@ -131,14 +131,6 @@ export function hasPermission(
     return profile.permissions[key] === true
   }
   return roleDefaultPermission(profile.role, key)
-}
-
-/** Management-level approval for requests above the threshold (> ₹2k). */
-export function canApproveAboveTwo(
-  profile: { role: UserRole; permissions?: UserPermissions } | null | undefined,
-): boolean {
-  if (!profile?.role) return false
-  return canApproveManagement(profile.role) || hasPermission(profile, 'abovetwo')
 }
 
 export function roleLabel(role: string | null | undefined): string {

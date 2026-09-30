@@ -8,6 +8,7 @@ import type { UserRole } from '@/lib/role'
 import {
   APPROVAL_THRESHOLD,
   LOW_AMOUNT_ASSIGNEE_NAME,
+  LOW_AMOUNT_MANAGEMENT_APPROVER_UID,
   type CashRequest,
   type CashStatus,
   type PaymentInstallment,
@@ -38,15 +39,6 @@ async function findUserByDisplayName(
     }
   }
   return null
-}
-
-async function findAboveTwoApproverUids(): Promise<string[]> {
-  const snap = await get(ref(db, 'users'))
-  if (!snap.exists()) return []
-  const val = snap.val() as Record<string, { permissions?: { abovetwo?: boolean } }>
-  return Object.entries(val)
-    .filter(([, user]) => user.permissions?.abovetwo === true)
-    .map(([uid]) => uid)
 }
 
 function parseRequest(id: string, raw: Record<string, unknown>): CashRequest {
@@ -279,13 +271,12 @@ export async function hrApproveRequest(
   if (!current) throw new Error('Request not found')
   if (current.status !== 'pending_hr') throw new Error('Request is not pending HR approval')
 
-  const nextStatus: CashStatus =
-    current.amount <= APPROVAL_THRESHOLD ? 'pending_finance' : 'pending_management'
+  const nextStatus: CashStatus = 'pending_management'
+  const lowAmount = current.amount <= APPROVAL_THRESHOLD
 
-  const message =
-    nextStatus === 'pending_finance'
-      ? `HR approved (≤ ₹${APPROVAL_THRESHOLD}). Sent to Finance.`
-      : `HR approved (> ₹${APPROVAL_THRESHOLD}). Sent to Management.`
+  const message = lowAmount
+    ? `HR approved (≤ ₹${APPROVAL_THRESHOLD}). Sent to the assigned Management approver.`
+    : `HR approved (> ₹${APPROVAL_THRESHOLD}). Sent to Management.`
 
   const updates = {
     status: nextStatus,
@@ -304,12 +295,7 @@ export async function hrApproveRequest(
 
   await update(ref(db, `cashRequests/${id}`), updates)
 
-  const notifyTarget: UserRole[] =
-    nextStatus === 'pending_finance' ? ['finance', 'it'] : ['management', 'it']
-  const extraUids =
-    nextStatus === 'pending_management'
-      ? await findAboveTwoApproverUids().catch(() => [])
-      : []
+  const notifyTarget: UserRole[] = lowAmount ? ['it'] : ['management', 'it']
   await notifyRoles(
     notifyTarget,
     {
@@ -319,7 +305,7 @@ export async function hrApproveRequest(
       link: `/cash/${id}`,
       requestId: id,
     },
-    extraUids,
+    lowAmount ? [LOW_AMOUNT_MANAGEMENT_APPROVER_UID] : [],
   ).catch((err) => console.error('Failed to create notifications', err))
 }
 
@@ -369,7 +355,7 @@ function splitEqualAmounts(total: number): [number, number] {
 
 export async function managementApproveWithPlan(
   id: string,
-  actor: { uid: string; name: string },
+  actor: { uid: string; name: string; role?: UserRole | null },
   plan: {
     type: PaymentPlanType
     installments: { amount: number; dueDate: string }[]
@@ -380,6 +366,9 @@ export async function managementApproveWithPlan(
   if (!current) throw new Error('Request not found')
   if (current.status !== 'pending_management') {
     throw new Error('Request is not pending Management approval')
+  }
+  if (!canApproveCashAtManagement(current, actor)) {
+    throw new Error('You are not the approver for this request')
   }
 
   if (plan.type === 'split_equal' && plan.installments.length !== 2) {
@@ -444,13 +433,16 @@ export async function managementApproveWithPlan(
 
 export async function managementRejectRequest(
   id: string,
-  actor: { uid: string; name: string },
+  actor: { uid: string; name: string; role?: UserRole | null },
   reason: string,
 ): Promise<void> {
   const current = await getCashRequest(id)
   if (!current) throw new Error('Request not found')
   if (current.status !== 'pending_management') {
     throw new Error('Request is not pending Management approval')
+  }
+  if (!canApproveCashAtManagement(current, actor)) {
+    throw new Error('You are not the approver for this request')
   }
 
   await update(ref(db, `cashRequests/${id}`), {
@@ -605,12 +597,28 @@ export async function markInstallmentPaid(
   }
 }
 
+/**
+ * ≤ threshold: only the fixed low-amount approver; > threshold: any Management user.
+ * IT can always act.
+ */
+export function canApproveCashAtManagement(
+  request: Pick<CashRequest, 'status' | 'amount'>,
+  actor: { uid: string; role?: UserRole | null },
+): boolean {
+  if (request.status !== 'pending_management') return false
+  if (actor.role === 'it') return true
+  if (request.amount <= APPROVAL_THRESHOLD) return actor.uid === LOW_AMOUNT_MANAGEMENT_APPROVER_UID
+  return actor.role === 'management'
+}
+
 export function waitingOnLabel(request: CashRequest): string {
   switch (request.status) {
     case 'pending_hr':
       return 'Waiting on HR'
     case 'pending_management':
-      return 'Waiting on Management'
+      return request.amount <= APPROVAL_THRESHOLD
+        ? 'Waiting on assigned Management approver'
+        : 'Waiting on Management'
     case 'pending_finance':
     case 'partially_paid':
       return 'Waiting on Finance'

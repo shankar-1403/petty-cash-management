@@ -19,8 +19,8 @@ import {
   subscribeAllMonthlyCredits,
   summarizeMonthWithCarry,
 } from '@/lib/balance'
-import { canApproveHr, canApproveManagement, hasPermission, ROLE_LABELS } from '@/lib/role'
-import { subscribeSalarySheets } from '@/lib/salary'
+import { canApproveHr, hasPermission, ROLE_LABELS } from '@/lib/role'
+import { canViewSalarySheet, subscribeSalarySheets } from '@/lib/salary'
 import { formatCurrency } from '@/lib/utils'
 import {
   CASH_STATUS_LABELS,
@@ -111,19 +111,10 @@ export default function DashboardPage() {
     return items
   }, [requests, showBalance, yearMonth, summary])
 
-  const visibleSheets = useMemo(() => {
-    return sheets.filter((sheet) => {
-      if (canApproveHr(role) || role === 'it') return true
-      if (canApproveManagement(role)) {
-        return (
-          sheet.status === 'shared_management' ||
-          sheet.status === 'pending_finance' ||
-          sheet.status === 'approved'
-        )
-      }
-      return sheet.status === 'pending_finance' || sheet.status === 'approved'
-    })
-  }, [sheets, role])
+  const visibleSheets = useMemo(
+    () => sheets.filter((sheet) => canViewSalarySheet(profile, sheet)),
+    [sheets, profile],
+  )
 
   const salaryStats = useMemo(() => {
     const total = visibleSheets.length

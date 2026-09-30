@@ -23,7 +23,45 @@ import { DataTable, TableActions } from '@/components/ui/data-table'
 import { useAuth } from '@/context/AuthContext'
 import { ALL_ROLES, ROLE_LABELS, type UserRole } from '@/lib/role'
 import { createDepartmentUser, subscribeUsers, updateUserProfile } from '@/lib/users'
-import type { AppUserProfile, UserPermissions } from '@/types'
+import {
+  MANAGEMENT_LEVEL_LABELS,
+  MANAGEMENT_LEVELS,
+  type AppUserProfile,
+  type ManagementLevel,
+  type UserPermissions,
+} from '@/types'
+
+const NO_LEVEL = 'none'
+
+function ManagementLevelSelect({
+  value,
+  onChange,
+}: {
+  value: ManagementLevel | undefined
+  onChange: (value: ManagementLevel | undefined) => void
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>Management level (salary approval)</Label>
+      <Select
+        value={value ?? NO_LEVEL}
+        onValueChange={(v) => onChange(v === NO_LEVEL ? undefined : (v as ManagementLevel))}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NO_LEVEL}>No level (view only)</SelectItem>
+          {MANAGEMENT_LEVELS.map((level) => (
+            <SelectItem key={level} value={level}>
+              {MANAGEMENT_LEVEL_LABELS[level]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
 
 export default function UsersRolesPage() {
   const { profile } = useAuth()
@@ -32,6 +70,8 @@ export default function UsersRolesPage() {
   const [editDisplayName, setEditDisplayName] = useState('')
   const [editRole, setEditRole] = useState<UserRole>('hr')
   const [perms, setPerms] = useState<UserPermissions>({})
+  const [editLevel, setEditLevel] = useState<ManagementLevel | undefined>(undefined)
+  const [newLevel, setNewLevel] = useState<ManagementLevel | undefined>(undefined)
   const [createOpen, setCreateOpen] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -48,6 +88,7 @@ export default function UsersRolesPage() {
     setEditDisplayName(user.displayName || '')
     setEditRole(user.role)
     setPerms(user.permissions ?? {})
+    setEditLevel(user.managementLevel)
   }
 
   async function saveEdit() {
@@ -62,6 +103,7 @@ export default function UsersRolesPage() {
         displayName: editDisplayName,
         role: editRole,
         permissions: perms,
+        managementLevel: editRole === 'management' ? editLevel : undefined,
       })
       toast.success('User updated')
       setEditUser(null)
@@ -89,7 +131,6 @@ export default function UsersRolesPage() {
         permissions: {
           cash: true,
           salary: newRole !== 'admin',
-          abovetwo: newRole === 'management' || newRole === 'it',
           tracking:
             newRole === 'admin' ||
             newRole === 'hr' ||
@@ -97,6 +138,7 @@ export default function UsersRolesPage() {
             newRole === 'it',
           users: newRole === 'it',
         },
+        managementLevel: newRole === 'management' ? newLevel : undefined,
         itEmail: profile.email,
         itPassword,
       })
@@ -106,6 +148,7 @@ export default function UsersRolesPage() {
       setPassword('')
       setDisplayName('')
       setItPassword('')
+      setNewLevel(undefined)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Create failed')
     } finally {
@@ -135,6 +178,14 @@ export default function UsersRolesPage() {
         cell: ({ row }) => (
           <Badge variant="outline">{ROLE_LABELS[row.original.role]}</Badge>
         ),
+      },
+      {
+        id: 'managementLevel',
+        header: 'Level',
+        cell: ({ row }) =>
+          row.original.role === 'management' && row.original.managementLevel
+            ? MANAGEMENT_LEVEL_LABELS[row.original.managementLevel]
+            : '—',
       },
       {
         id: 'actions',
@@ -226,12 +277,14 @@ export default function UsersRolesPage() {
                 </SelectContent>
               </Select>
             </div>
+            {editRole === 'management' && (
+              <ManagementLevelSelect value={editLevel} onChange={setEditLevel} />
+            )}
             {(
               [
                 ['cash', 'Cash module'],
                 ['salary', 'Salary module'],
                 ['tracking', 'Tracking'],
-                ['abovetwo', 'Above 2k (Management-level approval)'],
                 ['users', 'Users & roles'],
               ] as const
             ).map(([key, label]) => (
@@ -300,6 +353,9 @@ export default function UsersRolesPage() {
                 </SelectContent>
               </Select>
             </div>
+            {newRole === 'management' && (
+              <ManagementLevelSelect value={newLevel} onChange={setNewLevel} />
+            )}
             <div className="space-y-2">
               <Label>Your IT password (to restore session)</Label>
               <Input

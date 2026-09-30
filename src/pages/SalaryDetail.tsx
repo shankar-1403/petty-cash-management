@@ -15,20 +15,15 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/context/AuthContext'
+import { canApproveHr, canSettleFinance } from '@/lib/role'
 import {
-  canApproveHr,
-  canApproveManagement,
-  canSettleFinance,
-} from '@/lib/role'
-import {
+  approveSalaryAtLevel,
+  canActOnSalaryStage,
   financeApproveSalary,
   getSalarySheet,
-  hrHeadApproveSalary,
-  hrHeadRejectSalary,
-  isHrHead,
-  managementApproveSalary,
-  managementRejectSalary,
-  shareSalaryWithHrHead,
+  rejectSalaryAtLevel,
+  salaryRejectedLevel,
+  salaryStageLevel,
   shareSalaryWithManagement,
 } from '@/lib/salary'
 import {
@@ -39,7 +34,12 @@ import {
 } from '@/lib/crypto-file'
 import { downloadStorageBlob, getSalaryDownloadUrl } from '@/lib/storage'
 import { formatDateTime } from '@/lib/utils'
-import { SALARY_STATUS_LABELS, type SalarySheet } from '@/types'
+import {
+  MANAGEMENT_LEVEL_LABELS,
+  MANAGEMENT_LEVELS,
+  SALARY_STATUS_LABELS,
+  type SalarySheet,
+} from '@/types'
 
 export default function SalaryDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -47,7 +47,6 @@ export default function SalaryDetailPage() {
   const [sheet, setSheet] = useState<SalarySheet | null | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
-  const [rejectTarget, setRejectTarget] = useState<'hr_head' | 'management'>('management')
   const [reason, setReason] = useState('')
   const [downloadPassword, setDownloadPassword] = useState('')
   const [downloading, setDownloading] = useState(false)
@@ -66,9 +65,6 @@ export default function SalaryDetailPage() {
     if (!user || !profile) return null
     return { uid: user.uid, name: profile.displayName || profile.email }
   }, [user, profile])
-
-  const itOverride = role === 'it'
-  const canActAsHrHead = Boolean(user && (isHrHead(user.uid) || itOverride))
 
   if (sheet === undefined) {
     return (
@@ -90,30 +86,20 @@ export default function SalaryDetailPage() {
     )
   }
 
-  const showHrSendToHead =
-    canApproveHr(role) && (sheet.status === 'draft' || sheet.status === 'rejected')
-  const showHrHeadApprove = canActAsHrHead && sheet.status === 'pending_hr_head'
-  const showHrHeadSend = canActAsHrHead && sheet.status === 'hr_head_approved'
-  const showHrHeadReject =
-    canActAsHrHead && (sheet.status === 'pending_hr_head' || sheet.status === 'hr_head_approved')
-  const showMgmt =
-    canApproveManagement(role) &&
-    (sheet.status === 'shared_management' || sheet.status === 'hr_head_approved')
+  const stageLevel = salaryStageLevel(sheet.status)
+  const stageLabel = stageLevel ? MANAGEMENT_LEVEL_LABELS[stageLevel] : ''
+  const rejectedLevel = salaryRejectedLevel(sheet)
+  const showHrSend = canApproveHr(role) && sheet.status === 'draft'
+  const showMgmt = canActOnSalaryStage(profile, sheet.status)
   const showFinance = canSettleFinance(role) && sheet.status === 'pending_finance'
-  const showActions =
-    showHrSendToHead ||
-    showHrHeadApprove ||
-    showHrHeadSend ||
-    showHrHeadReject ||
-    showMgmt ||
-    showFinance
+  const showActions = showHrSend || showMgmt || showFinance
 
-  async function onSendToHrHead() {
+  async function onSendToManagement() {
     if (!actor || !id) return
     setBusy(true)
     try {
-      await shareSalaryWithHrHead(id, actor)
-      toast.success('Sent to HR Head')
+      await shareSalaryWithManagement(id, actor)
+      toast.success(`Sent to ${MANAGEMENT_LEVEL_LABELS.lower}`)
       await reload()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Send failed')
@@ -122,40 +108,14 @@ export default function SalaryDetailPage() {
     }
   }
 
-  async function onHrHeadApprove() {
-    if (!actor || !id) return
-    setBusy(true)
-    try {
-      await hrHeadApproveSalary(id, actor, { allowItOverride: itOverride })
-      toast.success('Approved by HR Head')
-      await reload()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Approve failed')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function onSendToManagement() {
-    if (!actor || !id) return
-    setBusy(true)
-    try {
-      await shareSalaryWithManagement(id, actor, { allowItOverride: itOverride })
-      toast.success('Sent to Management')
-      await reload()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Share failed')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   async function onMgmtApprove() {
-    if (!actor || !id) return
+    if (!actor || !id || !profile) return
     setBusy(true)
     try {
-      await managementApproveSalary(id, actor)
-      toast.success('Approved — sent to Finance')
+      await approveSalaryAtLevel(id, actor, profile)
+      toast.success(
+        stageLevel === 'head' ? 'Approved — sent to Finance' : 'Approved — sent to the next level',
+      )
       await reload()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Approve failed')
@@ -165,18 +125,14 @@ export default function SalaryDetailPage() {
   }
 
   async function onReject() {
-    if (!actor || !id || !reason.trim()) {
+    if (!actor || !id || !profile || !reason.trim()) {
       toast.error('Enter a reason')
       return
     }
     setBusy(true)
     try {
-      if (rejectTarget === 'hr_head') {
-        await hrHeadRejectSalary(id, actor, reason.trim(), { allowItOverride: itOverride })
-      } else {
-        await managementRejectSalary(id, actor, reason.trim())
-      }
-      toast.success('Rejected')
+      await rejectSalaryAtLevel(id, actor, profile, reason.trim())
+      toast.success('Rejected — sent back to HR')
       setRejectOpen(false)
       setReason('')
       await reload()
@@ -312,56 +268,46 @@ export default function SalaryDetailPage() {
         </Card>
       )}
 
+      {sheet.status === 'rejected' && sheet.rejection && (
+        <Card className="border-red-500/40">
+          <CardHeader>
+            <CardTitle>Rejected</CardTitle>
+            <CardDescription>
+              By {sheet.rejection.byName}
+              {rejectedLevel ? ` (${MANAGEMENT_LEVEL_LABELS[rejectedLevel]})` : ''} ·{' '}
+              {formatDateTime(sheet.rejection.at)}. This sheet cannot
+              be re-sent — upload a new sheet instead.
+            </CardDescription>
+          </CardHeader>
+          {sheet.rejection.reason && (
+            <CardContent>
+              <p className="text-sm">{sheet.rejection.reason}</p>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       {showActions && (
         <Card>
           <CardHeader>
             <CardTitle>Actions</CardTitle>
             <CardDescription>
-              Flow: HR → HR Head → Management → Finance
+              Flow: HR → Lower Management → Higher Management → Head Management → Finance
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
-            {showHrSendToHead && (
-              <Button disabled={busy} onClick={() => void onSendToHrHead()}>
-                Send to HR Head
-              </Button>
-            )}
-            {showHrHeadApprove && (
-              <Button disabled={busy} onClick={() => void onHrHeadApprove()}>
-                Approve (HR Head)
-              </Button>
-            )}
-            {showHrHeadSend && (
+            {showHrSend && (
               <Button disabled={busy} onClick={() => void onSendToManagement()}>
-                Send to Management
-              </Button>
-            )}
-            {showHrHeadReject && (
-              <Button
-                variant="danger"
-                disabled={busy}
-                onClick={() => {
-                  setRejectTarget('hr_head')
-                  setRejectOpen(true)
-                }}
-              >
-                Reject (HR Head)
+                Send to {MANAGEMENT_LEVEL_LABELS.lower}
               </Button>
             )}
             {showMgmt && (
               <>
                 <Button disabled={busy} onClick={() => void onMgmtApprove()}>
-                  Approve (Management)
+                  Approve ({stageLabel})
                 </Button>
-                <Button
-                  variant="danger"
-                  disabled={busy}
-                  onClick={() => {
-                    setRejectTarget('management')
-                    setRejectOpen(true)
-                  }}
-                >
-                  Reject
+                <Button variant="danger" disabled={busy} onClick={() => setRejectOpen(true)}>
+                  Reject ({stageLabel})
                 </Button>
               </>
             )}
@@ -373,6 +319,65 @@ export default function SalaryDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Management approvals</CardTitle>
+          <CardDescription>
+            {stageLevel
+              ? `Waiting on ${stageLabel}`
+              : sheet.status === 'rejected'
+                ? rejectedLevel
+                  ? `Rejected by ${MANAGEMENT_LEVEL_LABELS[rejectedLevel]} (${sheet.rejection?.byName ?? '—'})`
+                  : `Rejected${sheet.rejection?.byName ? ` by ${sheet.rejection.byName}` : ''}`
+                : sheet.status === 'pending_finance' || sheet.status === 'approved'
+                  ? 'All management levels approved'
+                  : 'Not yet sent to Management'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-3">
+          {MANAGEMENT_LEVELS.map((level) => {
+            const approval = sheet.approvals?.[level]
+            const rejected = rejectedLevel === level ? sheet.rejection : undefined
+            const current = stageLevel === level
+            return (
+              <div
+                key={level}
+                className={`rounded-xl border px-3 py-2.5 ${
+                  rejected
+                    ? 'border-red-500/50 bg-red-500/10'
+                    : current
+                      ? 'border-[var(--color-primary)] bg-[color-mix(in_oklab,var(--color-primary)_8%,transparent)]'
+                      : 'border-[var(--color-border)]'
+                }`}
+              >
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  {MANAGEMENT_LEVEL_LABELS[level]}
+                </p>
+                <p className={`text-sm font-medium ${rejected ? 'text-red-500' : ''}`}>
+                  {rejected
+                    ? `Rejected by ${rejected.byName}`
+                    : approval
+                      ? `Approved by ${approval.byName}`
+                      : current
+                        ? 'Pending'
+                        : '—'}
+                </p>
+                {(rejected || approval) && (
+                  <p className="text-xs text-[var(--color-muted-foreground)]">
+                    {formatDateTime((rejected ?? approval)!.at)}
+                  </p>
+                )}
+                {rejected?.reason && (
+                  <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
+                    Reason: {rejected.reason}
+                  </p>
+                )}
+              </div>
+            )
+          })}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -394,7 +399,7 @@ export default function SalaryDetailPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reject salary sheet</DialogTitle>
-            <DialogDescription>HR can edit and re-send after rejection.</DialogDescription>
+            <DialogDescription>The sheet goes back to HR and cannot be re-sent; HR will need to upload a new sheet.</DialogDescription>
           </DialogHeader>
           <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason" />
           <div className="flex justify-end gap-2">

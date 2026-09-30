@@ -7,41 +7,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
 import { useAuth } from '@/context/AuthContext'
-import { canApproveHr, canApproveManagement, hasPermission } from '@/lib/role'
-import { isHrHead, subscribeSalarySheets } from '@/lib/salary'
+import { canApproveHr } from '@/lib/role'
+import { canViewSalarySheet, subscribeSalarySheets } from '@/lib/salary'
 import { formatDateTime } from '@/lib/utils'
 import { SALARY_STATUS_LABELS, type SalarySheet } from '@/types'
 
 export default function SalaryListPage() {
-  const { user, profile, role } = useAuth()
+  const { profile, role } = useAuth()
   const navigate = useNavigate()
   const [sheets, setSheets] = useState<SalarySheet[] | null>(null)
   const canCreate = canApproveHr(role)
 
   useEffect(() => subscribeSalarySheets(setSheets), [])
 
-  const visible = useMemo(() => {
-    return (sheets ?? []).filter((sheet) => {
-      if (canApproveHr(role) || role === 'it' || (user && isHrHead(user.uid))) return true
-
-      // Management with Salary access: visible once HR Head has approved
-      if (canApproveManagement(role) && hasPermission(profile, 'salary')) {
-        return (
-          sheet.status === 'hr_head_approved' ||
-          sheet.status === 'shared_management' ||
-          sheet.status === 'pending_finance' ||
-          sheet.status === 'approved'
-        )
-      }
-
-      // Finance (and others with salary): from pending finance onward
-      if (hasPermission(profile, 'salary')) {
-        return sheet.status === 'pending_finance' || sheet.status === 'approved'
-      }
-
-      return false
-    })
-  }, [sheets, role, user, profile])
+  const visible = useMemo(
+    () => (sheets ?? []).filter((sheet) => canViewSalarySheet(profile, sheet)),
+    [sheets, profile],
+  )
 
   const columns = useMemo<ColumnDef<SalarySheet>[]>(
     () => [
@@ -95,7 +77,7 @@ export default function SalaryListPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Salary</h1>
           <p className="text-sm text-[var(--color-muted-foreground)]">
-            HR uploads a sheet → HR Head approves → Management → Finance.
+            HR uploads a sheet → Lower Management → Higher Management → Head Management → Finance.
           </p>
         </div>
         {canCreate && (

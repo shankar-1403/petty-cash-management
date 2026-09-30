@@ -23,6 +23,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/context/AuthContext'
 import {
+  canApproveCashAtManagement,
   getCashRequest,
   hrApproveRequest,
   hrRejectRequest,
@@ -33,7 +34,6 @@ import {
   waitingOnLabel,
 } from '@/lib/cash'
 import {
-  canApproveAboveTwo,
   canApproveHr,
   canEditCash,
   canSettleFinance,
@@ -97,8 +97,8 @@ export default function CashDetailPage() {
 
   const actor = useMemo(() => {
     if (!user || !profile) return null
-    return { uid: user.uid, name: profile.displayName || profile.email }
-  }, [user, profile])
+    return { uid: user.uid, name: profile.displayName || profile.email, role }
+  }, [user, profile, role])
 
   if (request === undefined) {
     return (
@@ -218,8 +218,9 @@ export default function CashDetailPage() {
   }
 
   const showHrActions = canApproveHr(role) && request.status === 'pending_hr'
-  const showMgmtActions =
-    canApproveAboveTwo(profile) && request.status === 'pending_management'
+  const showMgmtActions = Boolean(
+    user && canApproveCashAtManagement(request, { uid: user.uid, role }),
+  )
   const showFinance =
     canSettleFinance(role) &&
     (request.status === 'pending_finance' || request.status === 'partially_paid')
@@ -276,8 +277,8 @@ export default function CashDetailPage() {
               <p className="text-xs text-[var(--color-muted-foreground)]">
                 Threshold ₹{APPROVAL_THRESHOLD.toLocaleString('en-IN')} —{' '}
                 {request.amount <= APPROVAL_THRESHOLD
-                  ? 'HR final (no Management)'
-                  : 'Requires Management'}
+                  ? 'HR → assigned Management approver → Finance'
+                  : 'HR → Management → Finance'}
               </p>
             </div>
             <div>
@@ -347,9 +348,7 @@ export default function CashDetailPage() {
                   ? `${request.approvals.management.byName} · ${formatDateTime(request.approvals.management.at)}`
                   : request.status === 'pending_management'
                     ? 'Not approved yet'
-                    : request.amount <= APPROVAL_THRESHOLD && request.approvals?.hr
-                      ? 'Not required (≤ threshold)'
-                      : '—'}
+                    : '—'}
               </p>
             </div>
           </CardContent>

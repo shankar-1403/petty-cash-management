@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input, Label } from '@/components/ui/input'
 import { useAuth } from '@/context/AuthContext'
 import { canApproveHr } from '@/lib/role'
-import { createSalarySheet, shareSalaryWithHrHead } from '@/lib/salary'
+import { createSalarySheet, shareSalaryWithManagement } from '@/lib/salary'
 
 export default function SalaryCreatePage() {
   const { user, profile, role } = useAuth()
@@ -23,7 +23,7 @@ export default function SalaryCreatePage() {
     return <Navigate to="/salary" replace />
   }
 
-  async function uploadSheet(sendToHrHead: boolean) {
+  async function uploadSheet(sendToManagement: boolean) {
     if (!user || !profile) return
 
     if (!title.trim() || !period.trim()) {
@@ -54,12 +54,12 @@ export default function SalaryCreatePage() {
         createdByName: profile.displayName || profile.email,
       })
 
-      if (sendToHrHead) {
-        await shareSalaryWithHrHead(id, {
+      if (sendToManagement) {
+        await shareSalaryWithManagement(id, {
           uid: user.uid,
           name: profile.displayName || profile.email,
         })
-        toast.success('Uploaded and sent to HR Head')
+        toast.success('Uploaded and sent to Lower Management')
       } else {
         toast.success('Salary sheet saved as draft')
       }
@@ -88,7 +88,7 @@ export default function SalaryCreatePage() {
             Upload salary sheet
           </CardTitle>
           <CardDescription>
-            Upload an Excel/CSV/PDF sheet and set a password. Then send it to HR Head for approval.
+            Upload an Excel/CSV/PDF sheet and set a password. Then send it to Management for approval (Lower → Higher → Head).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -174,7 +174,7 @@ export default function SalaryCreatePage() {
 
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={submitting}>
-                {submitting ? 'Uploading…' : 'Upload & send to HR Head'}
+                {submitting ? 'Uploading…' : 'Upload & send to Management'}
               </Button>
               <Button
                 type="button"

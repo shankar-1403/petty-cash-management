@@ -50,7 +50,7 @@ export default function CashCreatePage() {
       return `Amount is under ₹${APPROVAL_THRESHOLD.toLocaleString('en-IN')} — will be mapped to ${LOW_AMOUNT_ASSIGNEE_NAME}.`
     }
     if (Number.isFinite(amountValue) && amountValue >= APPROVAL_THRESHOLD) {
-      return `Amount is ₹${APPROVAL_THRESHOLD.toLocaleString('en-IN')} or more — goes through HR then Management.`
+      return `Amount is ₹${APPROVAL_THRESHOLD.toLocaleString('en-IN')} or more — goes through HR, then Management, then Finance.`
     }
     return null
   }, [amount, amountValue, mapsToPuja])

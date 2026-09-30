@@ -20,7 +20,7 @@ import {
 } from 'firebase/auth'
 import { get, onValue, ref, set } from 'firebase/database'
 import { auth, db } from '@/lib/firebase'
-import { normalizeRole, type UserRole } from '@/lib/role'
+import { normalizeRole, parseManagementLevel, type UserRole } from '@/lib/role'
 import type { AppUserProfile, UserPermissions } from '@/types'
 
 type ProfileIssue =
@@ -155,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role,
           createdAt: Number(data.createdAt ?? Date.now()),
           permissions: (data.permissions as UserPermissions | undefined) ?? undefined,
+          managementLevel: parseManagementLevel(data.managementLevel),
         }
 
         setProfile(merged)
@@ -226,6 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: nextRole,
           createdAt: Number(data.createdAt ?? Date.now()),
           permissions: (data.permissions as UserPermissions | undefined) ?? undefined,
+          managementLevel: parseManagementLevel(data.managementLevel),
         })
         setIssue(null)
       },

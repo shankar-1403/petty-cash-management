@@ -13,6 +13,7 @@ const M365_EMAIL = defineSecret('M365_EMAIL')
 const M365_PASSWORD = defineSecret('M365_PASSWORD')
 
 const APPROVAL_THRESHOLD = 2000
+const LOW_AMOUNT_MANAGEMENT_APPROVER_UID = 'xaNIHMxmHAMSLe1wgXSGAQLHYp83'
 const APP_URL = 'https://kubera.pcred.org'
 const REGION = 'asia-southeast1'
 const DB_INSTANCE = 'petty-cash-management-6650a-default-rtdb'
@@ -28,7 +29,6 @@ interface UserRecord {
     salary?: boolean
     tracking?: boolean
     users?: boolean
-    abovetwo?: boolean
   }
 }
 
@@ -75,8 +75,6 @@ function userHasPermission(
       return role === 'admin' || role === 'hr' || role === 'management' || role === 'it'
     case 'users':
       return role === 'it'
-    case 'abovetwo':
-      return role === 'management' || role === 'it'
     default:
       return false
   }
@@ -119,19 +117,14 @@ async function getUsersByRole(
   return result
 }
 
-/** Users of any role with the explicit `abovetwo` permission (Management-level approval > ₹2k). */
-async function getAboveTwoApprovers(): Promise<{ email: string; displayName: string }[]> {
-  const snapshot = await getDatabase().ref('users').get()
-  if (!snapshot.exists()) return []
-  const result: { email: string; displayName: string }[] = []
-  snapshot.forEach((child) => {
-    const data = child.val() as UserRecord
-    if (data.email && data.permissions?.abovetwo === true) {
-      result.push({ email: data.email, displayName: data.displayName || data.email })
-    }
-  })
-  console.log(`getAboveTwoApprovers: recipients=${result.length}`)
-  return result
+async function getUserByUid(uid: string): Promise<{ email: string; displayName: string }[]> {
+  const snapshot = await getDatabase().ref(`users/${uid}`).get()
+  const data = snapshot.val() as UserRecord | null
+  if (!data?.email) {
+    console.log(`getUserByUid(${uid}): no user or email`)
+    return []
+  }
+  return [{ email: data.email, displayName: data.displayName || data.email }]
 }
 
 /** Deduplicate recipients by email (case-insensitive). */
@@ -369,13 +362,13 @@ export const onCashRequestWritten = onValueWritten(
       return
     }
 
-    // HR approved, amount > threshold → Management
+    // HR approved → Management (≤ threshold: fixed approver only; > threshold: all Management)
     if (prevStatus === 'pending_hr' && status === 'pending_management') {
-      const recipients = uniqueRecipients([
-        await getUsersByRole('management', 'cash'),
-        await getAboveTwoApprovers(),
-        await getUsersByRole('it', 'cash'),
-      ])
+      const approvers =
+        amount <= APPROVAL_THRESHOLD
+          ? await getUserByUid(LOW_AMOUNT_MANAGEMENT_APPROVER_UID)
+          : await getUsersByRole('management', 'cash')
+      const recipients = uniqueRecipients([approvers, await getUsersByRole('it', 'cash')])
       await sendEmails(
         recipients,
         `Payment Request Awaiting Your Approval: ${subject}`,
