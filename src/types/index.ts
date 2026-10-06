@@ -98,6 +98,7 @@ export interface SalarySheet {
   id: string
   title: string
   period: string
+  remarks: string
   rows: SalaryRow[]
   /** Uploaded spreadsheet file (password-encrypted in Storage) */
   fileUrl?: string

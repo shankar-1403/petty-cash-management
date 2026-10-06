@@ -14,6 +14,7 @@ export default function SalaryCreatePage() {
   const navigate = useNavigate()
   const [title, setTitle] = useState('')
   const [period, setPeriod] = useState('')
+  const [remarks, setRemarks] = useState('')
   const [sheetFile, setSheetFile] = useState<File | null>(null)
   const [filePassword, setFilePassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -49,6 +50,7 @@ export default function SalaryCreatePage() {
         title,
         period,
         sheetFile,
+        remarks,
         filePassword,
         createdBy: user.uid,
         createdByName: profile.displayName || profile.email,
@@ -142,7 +144,15 @@ export default function SalaryCreatePage() {
                 </p>
               )}
             </div>
-
+            <div>
+              <Label htmlFor='remarks'>Remarks</Label>
+              <Input
+                id="remarks"
+                placeholder="Add the remark...."
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+              />
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="filePassword">Sheet password</Label>

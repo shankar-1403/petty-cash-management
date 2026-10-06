@@ -118,6 +118,7 @@ function parseSheet(id: string, raw: Record<string, unknown>): SalarySheet {
     id,
     title: String(raw.title ?? ''),
     period: String(raw.period ?? ''),
+    remarks: String(raw.remarks ?? ''),
     rows,
     fileUrl: raw.fileUrl ? String(raw.fileUrl) : undefined,
     filePath: raw.filePath ? String(raw.filePath) : undefined,
@@ -164,6 +165,7 @@ export async function createSalarySheet(input: {
   period: string
   rows?: Omit<SalaryRow, 'id'>[]
   sheetFile: File
+  remarks:string
   filePassword: string
   createdBy: string
   createdByName: string
@@ -197,6 +199,7 @@ export async function createSalarySheet(input: {
   const sheet: Record<string, unknown> = {
     title: input.title.trim(),
     period: input.period.trim(),
+    remarks: input.remarks.trim(),
     rows,
     fileUrl: uploaded.url,
     filePath: uploaded.path,
@@ -225,7 +228,7 @@ export async function createSalarySheet(input: {
 
 export async function updateSalarySheetDraft(
   id: string,
-  input: { title: string; period: string; rows: SalaryRow[] },
+  input: { title: string; period: string; remarks: string; rows: SalaryRow[] },
   actor: Actor,
 ): Promise<void> {
   const current = await getSalarySheet(id)
@@ -237,6 +240,7 @@ export async function updateSalarySheetDraft(
   await update(ref(db, `salarySheets/${id}`), {
     title: input.title.trim(),
     period: input.period.trim(),
+    remarks: input.remarks.trim(),
     rows: input.rows,
     status: 'draft',
     updatedAt: Date.now(),

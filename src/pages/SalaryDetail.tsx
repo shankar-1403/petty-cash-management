@@ -46,6 +46,7 @@ export default function SalaryDetailPage() {
   const { user, profile, role } = useAuth()
   const [sheet, setSheet] = useState<SalarySheet | null | undefined>(undefined)
   const [busy, setBusy] = useState(false)
+  const [managementRemarks,setManagementRemarks] = useState('')
   const [rejectOpen, setRejectOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [downloadPassword, setDownloadPassword] = useState('')
@@ -286,6 +287,17 @@ export default function SalaryDetailPage() {
           )}
         </Card>
       )}
+
+      {sheet.remarks &&
+        <Card>
+          <CardHeader>
+            <CardTitle>Remarks</CardTitle>
+            <CardContent>
+              <p className='text-sm'>{sheet.remarks}</p>
+            </CardContent>
+          </CardHeader>
+        </Card>
+      }
 
       {showActions && (
         <Card>
