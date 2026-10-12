@@ -23,6 +23,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/context/AuthContext'
 import {
+  canApproveCashAtHr,
   canApproveCashAtManagement,
   getCashRequest,
   hrApproveRequest,
@@ -34,7 +35,6 @@ import {
   waitingOnLabel,
 } from '@/lib/cash'
 import {
-  canApproveHr,
   canEditCash,
   canSettleFinance,
 } from '@/lib/role'
@@ -217,7 +217,7 @@ export default function CashDetailPage() {
     }
   }
 
-  const showHrActions = canApproveHr(role) && request.status === 'pending_hr'
+  const showHrActions = Boolean(user && canApproveCashAtHr(request, { uid: user.uid, role }))
   const showMgmtActions = Boolean(
     user && canApproveCashAtManagement(request, { uid: user.uid, role }),
   )

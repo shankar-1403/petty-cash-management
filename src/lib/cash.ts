@@ -597,6 +597,18 @@ export async function markInstallmentPaid(
   }
 }
 
+/** HR step: HR/IT for all amounts; the low-amount approver also for amounts ≤ threshold. */
+export function canApproveCashAtHr(
+  request: Pick<CashRequest, 'status' | 'amount'>,
+  actor: { uid: string; role?: UserRole | null },
+): boolean {
+  if (request.status !== 'pending_hr') return false
+  if (actor.role === 'hr' || actor.role === 'it') return true
+  return (
+    actor.uid === LOW_AMOUNT_MANAGEMENT_APPROVER_UID && request.amount <= APPROVAL_THRESHOLD
+  )
+}
+
 /**
  * ≤ threshold: only the fixed low-amount approver; > threshold: any Management user.
  * IT can always act.
